@@ -5,9 +5,8 @@ class Dice
 {
 public:
     Dice();
-    
+
     unsigned roll();
 };
 
 #endif // __DICE_H
-

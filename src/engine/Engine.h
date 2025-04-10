@@ -86,6 +86,26 @@ public:
     bool solve( double timeoutInSeconds = 0 );
 
     /*
+      Different solving strategies.
+      [Pure method]
+      - DeepPoly
+      - Interval Arithmetic
+      - Symbolic
+
+      [With backward analysis]
+      - DeepPoly-bfa
+      - Interval Arithmetic-bfa
+      - Symbolic-bfa
+    */
+    bool solveWithDeepPoly( const IQuery &inputQuery );
+    bool solveWithIntervalArithmetic( const IQuery &inputQuery );
+    bool solveWithSymbolic( const IQuery &inputQuery );
+    bool solveWithDeepPolyBFA( double timeoutInSeconds = 0 );
+    bool solveWithIntervalArithmeticBFA( double timeoutInSeconds = 0 );
+    bool solveWithSymbolicBFA( double timeoutInSeconds = 0 );
+
+
+    /*
       Minimize the cost function with respect to the current set of linear constraints.
     */
     void minimizeHeuristicCost( const LinearExpression &heuristicCost );
@@ -304,6 +324,11 @@ public:
       Add lemma to the UNSAT Certificate
     */
     void addPLCLemma( std::shared_ptr<PLCLemma> &explanation );
+
+    /*
+      Get the number of layers in the network
+    */
+    unsigned getNumberOfLayers() const;
 
 private:
     enum BasisRestorationRequired {

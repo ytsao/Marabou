@@ -19,6 +19,10 @@
 #ifndef CVC4__CONTEXT__CONTEXT_H
 #define CVC4__CONTEXT__CONTEXT_H
 
+#include "base/check.h"
+#include "base/output.h"
+#include "context/context_mm.h"
+
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -26,10 +30,6 @@
 #include <new>
 #include <typeinfo>
 #include <vector>
-
-#include "base/check.h"
-#include "base/output.h"
-#include "context/context_mm.h"
 
 
 namespace CVC4 {
@@ -41,10 +41,10 @@ class ContextObj;
 class ContextNotifyObj;
 
 /** Pretty-printing of Contexts (for debugging) */
-std::ostream& operator<<(std::ostream&, const Context&);
+std::ostream &operator<<( std::ostream &, const Context & );
 
 /** Pretty-printing of Scopes (for debugging) */
-std::ostream& operator<<(std::ostream&, const Scope&);
+std::ostream &operator<<( std::ostream &, const Scope & );
 
 /**
  * A Context encapsulates all of the dynamic state of the system.  Its main
@@ -67,137 +67,152 @@ std::ostream& operator<<(std::ostream&, const Scope&);
  * ContextMemoryManager.  A copy is stored in each Scope object for quick
  * access.
  */
-class Context {
+class Context
+{
+    /**
+     * Pointer to the ContextMemoryManager for this Context.
+     */
+    ContextMemoryManager *d_pCMM;
 
-  /**
-   * Pointer to the ContextMemoryManager for this Context.
-   */
-  ContextMemoryManager* d_pCMM;
+    /**
+     * List of all scopes for this context.
+     */
+    std::vector<Scope *> d_scopeList;
 
-  /**
-   * List of all scopes for this context.
-   */
-  std::vector<Scope*> d_scopeList;
+    /**
+     * Doubly-linked list of objects to notify before every pop.  See
+     * ContextNotifyObj for structure of linked list.
+     */
+    ContextNotifyObj *d_pCNOpre;
 
-  /**
-   * Doubly-linked list of objects to notify before every pop.  See
-   * ContextNotifyObj for structure of linked list.
-   */
-  ContextNotifyObj* d_pCNOpre;
+    /**
+     * Doubly-linked list of objects to notify after every pop.  See
+     * ContextNotifyObj for structure of linked list.
+     */
+    ContextNotifyObj *d_pCNOpost;
 
-  /**
-   * Doubly-linked list of objects to notify after every pop.  See
-   * ContextNotifyObj for structure of linked list.
-   */
-  ContextNotifyObj* d_pCNOpost;
+    friend std::ostream &operator<<( std::ostream &, const Context & );
 
-  friend std::ostream& operator<<(std::ostream&, const Context&);
-
-  // disable copy, assignment
-  Context(const Context&) = delete;
-  Context& operator=(const Context&) = delete;
+    // disable copy, assignment
+    Context( const Context & ) = delete;
+    Context &operator=( const Context & ) = delete;
 
 public:
+    /**
+     * A mechanism by which a "scoped" bit of contextual speculation can
+     * be applied.  One might create a Context::ScopedPush in a function
+     * (as a local variable on the stack), then manipulate some
+     * context-dependent data structures in some fashion, speculatively.
+     * When the ScopedPush goes out of scope and is destructed, the
+     * context-dependent data structures will return to their original
+     * state.
+     *
+     * When such speculation occurs in a lexically-scoped manner, like
+     * described above, it is FAR preferable to use ScopedPush than to
+     * call ->push() and ->pop() on the Context directly.  If you do the
+     * latter, it's extremely easy to forget to pop() on exceptional
+     * exit of the function, or if a short-circuited "early" return is
+     * later added to the function, etc.  Further, ScopedPush includes
+     * an assertion that the Context at the end looks like the Context
+     * at the beginning (the topmost Scope pointer should be the same).
+     * This assertion is only an approximate check for correct behavior,
+     * but should catch egregious mismatches of ->push() and ->pop()
+     * while the ScopedPush is being applied---egregious mismatches that
+     * could exist, for example, if a Theory does some speculative
+     * reasoning but accidently gives control back to some other mechanism
+     * which does some speculation which isn't properly scoped inside the
+     * first.
+     */
+    class ScopedPush
+    {
+        Context *const d_context;
+        const Scope *const d_scope;
 
-  /**
-   * A mechanism by which a "scoped" bit of contextual speculation can
-   * be applied.  One might create a Context::ScopedPush in a function
-   * (as a local variable on the stack), then manipulate some
-   * context-dependent data structures in some fashion, speculatively.
-   * When the ScopedPush goes out of scope and is destructed, the
-   * context-dependent data structures will return to their original
-   * state.
-   *
-   * When such speculation occurs in a lexically-scoped manner, like
-   * described above, it is FAR preferable to use ScopedPush than to
-   * call ->push() and ->pop() on the Context directly.  If you do the
-   * latter, it's extremely easy to forget to pop() on exceptional
-   * exit of the function, or if a short-circuited "early" return is
-   * later added to the function, etc.  Further, ScopedPush includes
-   * an assertion that the Context at the end looks like the Context
-   * at the beginning (the topmost Scope pointer should be the same).
-   * This assertion is only an approximate check for correct behavior,
-   * but should catch egregious mismatches of ->push() and ->pop()
-   * while the ScopedPush is being applied---egregious mismatches that
-   * could exist, for example, if a Theory does some speculative
-   * reasoning but accidently gives control back to some other mechanism
-   * which does some speculation which isn't properly scoped inside the
-   * first.
-   */
-  class ScopedPush {
-    Context* const d_context;
-    const Scope* const d_scope;
-  public:
-    ScopedPush(Context* ctxt) :
-      d_context(ctxt),
-      d_scope(d_context->getTopScope()) {
-      d_context->push();
+    public:
+        ScopedPush( Context *ctxt )
+            : d_context( ctxt )
+            , d_scope( d_context->getTopScope() )
+        {
+            d_context->push();
+        }
+        ~ScopedPush() noexcept( false )
+        {
+            d_context->pop();
+            AlwaysAssert( d_context->getTopScope() == d_scope )
+                << "Context::ScopedPush observed an uneven Context (at pop, "
+                   "top scope doesn't match what it was at the time the "
+                   "ScopedPush was applied)";
+        }
+    }; /* Context::ScopedPush */
+
+    /**
+     * Constructor: create ContextMemoryManager and initial Scope
+     */
+    Context();
+
+    /**
+     * Destructor: pop all scopes, delete ContextMemoryManager
+     */
+    ~Context();
+
+    /**
+     * Return the current (top) scope
+     */
+    Scope *getTopScope() const
+    {
+        return d_scopeList.back();
     }
-    ~ScopedPush() noexcept(false) {
-      d_context->pop();
-      AlwaysAssert(d_context->getTopScope() == d_scope)
-          << "Context::ScopedPush observed an uneven Context (at pop, "
-             "top scope doesn't match what it was at the time the "
-             "ScopedPush was applied)";
+
+    /**
+     * Return the initial (bottom) scope
+     */
+    Scope *getBottomScope() const
+    {
+        return d_scopeList[0];
     }
-  };/* Context::ScopedPush */
 
-  /**
-   * Constructor: create ContextMemoryManager and initial Scope
-   */
-  Context();
+    /**
+     * Return the current Scope level.
+     */
+    int getLevel() const
+    {
+        return d_scopeList.size() - 1;
+    }
 
-  /**
-   * Destructor: pop all scopes, delete ContextMemoryManager
-   */
-  ~Context();
+    /**
+     * Return the ContextMemoryManager associated with the context.
+     */
+    ContextMemoryManager *getCMM()
+    {
+        return d_pCMM;
+    }
 
-  /**
-   * Return the current (top) scope
-   */
-  Scope* getTopScope() const { return d_scopeList.back(); }
+    /**
+     * Save the current state, create a new Scope
+     */
+    void push();
 
-  /**
-   * Return the initial (bottom) scope
-   */
-  Scope* getBottomScope() const { return d_scopeList[0]; }
+    /**
+     * Restore the previous state, delete the top Scope
+     */
+    void pop();
 
-  /**
-   * Return the current Scope level.
-   */
-  int getLevel() const { return d_scopeList.size() - 1; }
+    /**
+     * Pop all the way back to given level
+     */
+    void popto( int toLevel );
 
-  /**
-   * Return the ContextMemoryManager associated with the context.
-   */
-  ContextMemoryManager* getCMM() { return d_pCMM; }
+    /**
+     * Add pCNO to the list of objects notified before every pop
+     */
+    void addNotifyObjPre( ContextNotifyObj *pCNO );
 
-  /**
-   * Save the current state, create a new Scope
-   */
-  void push();
+    /**
+     * Add pCNO to the list of objects notified after every pop
+     */
+    void addNotifyObjPost( ContextNotifyObj *pCNO );
 
-  /**
-   * Restore the previous state, delete the top Scope
-   */
-  void pop();
-
-  /**
-   * Pop all the way back to given level
-   */
-  void popto(int toLevel);
-
-  /**
-   * Add pCNO to the list of objects notified before every pop
-   */
-  void addNotifyObjPre(ContextNotifyObj* pCNO);
-
-  /**
-   * Add pCNO to the list of objects notified after every pop
-   */
-  void addNotifyObjPost(ContextNotifyObj* pCNO);
-
-};/* class Context */
+}; /* class Context */
 
 
 /**
@@ -205,14 +220,18 @@ public:
  * different purposes---so separating the two types gives type errors where
  * appropriate.
  */
-class UserContext : public Context {
+class UserContext : public Context
+{
 private:
-  // disable copy, assignment
-  UserContext(const UserContext&) = delete;
-  UserContext& operator=(const UserContext&) = delete;
+    // disable copy, assignment
+    UserContext( const UserContext & ) = delete;
+    UserContext &operator=( const UserContext & ) = delete;
+
 public:
-  UserContext() {}
-};/* class UserContext */
+    UserContext()
+    {
+    }
+}; /* class UserContext */
 
 
 /**
@@ -230,118 +249,134 @@ public:
  * allocated by the Scope is allocated in a single region using the
  * ContextMemoryManager and released all at once when the Scope is popped.
  */
-class Scope {
+class Scope
+{
+    /**
+     * Context that created this Scope
+     */
+    Context *d_pContext;
 
-  /**
-   * Context that created this Scope
-   */
-  Context* d_pContext;
+    /**
+     * Memory manager for this Scope.  Same as in Context, but stored here too
+     * for faster access by ContextObj objects.
+     */
+    ContextMemoryManager *d_pCMM;
 
-  /**
-   * Memory manager for this Scope.  Same as in Context, but stored here too
-   * for faster access by ContextObj objects.
-   */
-  ContextMemoryManager* d_pCMM;
+    /**
+     * Scope level (total number of outstanding push() calls when this Scope was
+     * created).
+     */
+    int d_level;
 
-  /**
-   * Scope level (total number of outstanding push() calls when this Scope was
-   * created).
-   */
-  int d_level;
+    /**
+     * Linked list of objects which changed in this scope,
+     * and thus need to be restored when the scope is deleted.
+     */
+    ContextObj *d_pContextObjList;
 
-  /**
-   * Linked list of objects which changed in this scope,
-   * and thus need to be restored when the scope is deleted.
-   */
-  ContextObj* d_pContextObjList;
+    /**
+     * A list of ContextObj to be garbage collected before the destruction of this
+     * scope. deleteSelf() will be called on each element during ~Scope().
+     *
+     * This is either nullptr or list owned by this scope.
+     */
+    std::unique_ptr<std::vector<ContextObj *>> d_garbage;
 
-  /**
-   * A list of ContextObj to be garbage collected before the destruction of this
-   * scope. deleteSelf() will be called on each element during ~Scope().
-   *
-   * This is either nullptr or list owned by this scope.
-   */
-  std::unique_ptr<std::vector<ContextObj*>> d_garbage;
+    friend std::ostream &operator<<( std::ostream &, const Scope & );
 
-  friend std::ostream& operator<<(std::ostream&, const Scope&);
+public:
+    /**
+     * Constructor: Create a new Scope; set the level and the previous Scope
+     * if any.
+     */
+    Scope( Context *pContext, ContextMemoryManager *pCMM, int level )
+        : d_pContext( pContext )
+        , d_pCMM( pCMM )
+        , d_level( level )
+        , d_pContextObjList( nullptr )
+        , d_garbage()
+    {
+    }
 
- public:
-  /**
-   * Constructor: Create a new Scope; set the level and the previous Scope
-   * if any.
-   */
-  Scope(Context* pContext, ContextMemoryManager* pCMM, int level)
-      : d_pContext(pContext),
-        d_pCMM(pCMM),
-        d_level(level),
-        d_pContextObjList(nullptr),
-        d_garbage()
-  {
-  }
+    /**
+     * Destructor: Clears out all of the garbage and restore all of the objects
+     * in ContextObjList.
+     */
+    ~Scope();
 
-  /**
-   * Destructor: Clears out all of the garbage and restore all of the objects
-   * in ContextObjList.
-   */
-  ~Scope();
+    /**
+     * Get the Context for this Scope
+     */
+    Context *getContext() const
+    {
+        return d_pContext;
+    }
 
-  /**
-   * Get the Context for this Scope
-   */
-  Context* getContext() const { return d_pContext; }
+    /**
+     * Get the ContextMemoryManager for this Scope
+     */
+    ContextMemoryManager *getCMM() const
+    {
+        return d_pCMM;
+    }
 
-  /**
-   * Get the ContextMemoryManager for this Scope
-   */
-  ContextMemoryManager* getCMM() const { return d_pCMM; }
+    /**
+     * Get the level of the current Scope
+     */
+    int getLevel() const
+    {
+        return d_level;
+    }
 
-  /**
-   * Get the level of the current Scope
-   */
-  int getLevel() const { return d_level; }
+    /**
+     * Return true iff this Scope is the current top Scope
+     */
+    bool isCurrent() const
+    {
+        return this == d_pContext->getTopScope();
+    }
 
-  /**
-   * Return true iff this Scope is the current top Scope
-   */
-  bool isCurrent() const { return this == d_pContext->getTopScope(); }
+    /**
+     * When a ContextObj object is modified for the first time in this
+     * Scope, it should call this method to add itself to the list of
+     * objects that will need to be restored.  Defined inline below.
+     */
+    void addToChain( ContextObj *pContextObj );
 
-  /**
-   * When a ContextObj object is modified for the first time in this
-   * Scope, it should call this method to add itself to the list of
-   * objects that will need to be restored.  Defined inline below.
-   */
-  void addToChain(ContextObj* pContextObj);
+    /**
+     * Overload operator new for use with ContextMemoryManager to allow
+     * creation of new Scope objects in the current memory region.
+     */
+    static void *operator new( size_t size, ContextMemoryManager *pCMM )
+    {
+        Trace( "context_mm" ) << "Scope::new " << size << " in " << pCMM << std::endl;
+        return pCMM->newData( size );
+    }
 
-  /**
-   * Overload operator new for use with ContextMemoryManager to allow
-   * creation of new Scope objects in the current memory region.
-   */
-  static void* operator new(size_t size, ContextMemoryManager* pCMM)
-  {
-    Trace("context_mm") << "Scope::new " << size << " in " << pCMM << std::endl;
-    return pCMM->newData(size);
-  }
+    /**
+     * Enqueues a ContextObj to be garbage collected via a call to deleteSelf()
+     * during the destruction of this scope.
+     */
+    void enqueueToGarbageCollect( ContextObj *obj );
 
-  /**
-   * Enqueues a ContextObj to be garbage collected via a call to deleteSelf()
-   * during the destruction of this scope.
-   */
-  void enqueueToGarbageCollect(ContextObj* obj);
+    /**
+     * Overload operator delete for Scope objects allocated using
+     * ContextMemoryManager.  No need to do anything because memory is
+     * freed automatically when the ContextMemoryManager pop() method is
+     * called.  Include both placement and standard delete for
+     * completeness.
+     */
+    static void operator delete( void *pMem, ContextMemoryManager *pCMM )
+    {
+    }
+    static void operator delete( void *pMem )
+    {
+    }
 
-  /**
-   * Overload operator delete for Scope objects allocated using
-   * ContextMemoryManager.  No need to do anything because memory is
-   * freed automatically when the ContextMemoryManager pop() method is
-   * called.  Include both placement and standard delete for
-   * completeness.
-   */
-  static void operator delete(void* pMem, ContextMemoryManager* pCMM) {}
-  static void operator delete(void* pMem) {}
+    // FIXME:  //! Check for memory leaks
+    //   void check();
 
-  //FIXME:  //! Check for memory leaks
-  //  void check();
-
-};/* class Scope */
+}; /* class Scope */
 
 /**
  * This is an abstract base class from which all objects that are
@@ -427,235 +462,263 @@ class Scope {
  *    argument as the special constructor in this class (and pass it
  *    on to all ContextObj instances).
  */
-class ContextObj {
-  /**
-   * Pointer to Scope in which this object was last modified.
-   */
-  Scope* d_pScope;
+class ContextObj
+{
+    /**
+     * Pointer to Scope in which this object was last modified.
+     */
+    Scope *d_pScope;
 
-  /**
-   * Pointer to most recent version of same ContextObj in a previous Scope
-   */
-  ContextObj* d_pContextObjRestore;
+    /**
+     * Pointer to most recent version of same ContextObj in a previous Scope
+     */
+    ContextObj *d_pContextObjRestore;
 
-  /**
-   * Next link in ContextObjList list maintained by Scope class.
-   */
-  ContextObj* d_pContextObjNext;
+    /**
+     * Next link in ContextObjList list maintained by Scope class.
+     */
+    ContextObj *d_pContextObjNext;
 
-  /**
-   * Previous link in ContextObjList list maintained by Scope class.  We use
-   * double-indirection here to make element deletion easy.
-   */
-  ContextObj** d_ppContextObjPrev;
+    /**
+     * Previous link in ContextObjList list maintained by Scope class.  We use
+     * double-indirection here to make element deletion easy.
+     */
+    ContextObj **d_ppContextObjPrev;
 
-  /**
-   * Helper method for makeCurrent (see below).  Separated out to allow common
-   * case to be inlined without making a function call.  It calls save() and
-   * does the necessary bookkeeping to ensure that object can be restored to
-   * its current state when restore is called.
-   */
-  void update();
+    /**
+     * Helper method for makeCurrent (see below).  Separated out to allow common
+     * case to be inlined without making a function call.  It calls save() and
+     * does the necessary bookkeeping to ensure that object can be restored to
+     * its current state when restore is called.
+     */
+    void update();
 
-  // The rest of the private methods are for the benefit of the Scope.  We make
-  // Scope our friend so it is the only one that can use them.
+    // The rest of the private methods are for the benefit of the Scope.  We make
+    // Scope our friend so it is the only one that can use them.
 
-  friend class Scope;
+    friend class Scope;
 
-  friend std::ostream& operator<<(std::ostream&, const Scope&);
+    friend std::ostream &operator<<( std::ostream &, const Scope & );
 
-  /**
-   * Return reference to next link in ContextObjList.  Used by
-   * Scope::addToChain method.
-   */
-  ContextObj*& next() { return d_pContextObjNext; }
+    /**
+     * Return reference to next link in ContextObjList.  Used by
+     * Scope::addToChain method.
+     */
+    ContextObj *&next()
+    {
+        return d_pContextObjNext;
+    }
 
-  /**
-   * Return reference to prev link in ContextObjList.  Used by
-   * Scope::addToChain method.
-   */
-  ContextObj**& prev() { return d_ppContextObjPrev; }
+    /**
+     * Return reference to prev link in ContextObjList.  Used by
+     * Scope::addToChain method.
+     */
+    ContextObj **&prev()
+    {
+        return d_ppContextObjPrev;
+    }
 
-  /**
-   * This method is called by Scope during a pop: it does the necessary work to
-   * restore the object from its saved copy and then returns the next object in
-   * the list that needs to be restored.
-   */
-  ContextObj* restoreAndContinue();
+    /**
+     * This method is called by Scope during a pop: it does the necessary work to
+     * restore the object from its saved copy and then returns the next object in
+     * the list that needs to be restored.
+     */
+    ContextObj *restoreAndContinue();
 
- protected:
-  /**
-   * This is a method that must be implemented by all classes inheriting from
-   * ContextObj.  See the comment before the class declaration.
-   */
-  virtual ContextObj* save(ContextMemoryManager* pCMM) = 0;
+protected:
+    /**
+     * This is a method that must be implemented by all classes inheriting from
+     * ContextObj.  See the comment before the class declaration.
+     */
+    virtual ContextObj *save( ContextMemoryManager *pCMM ) = 0;
 
-  /**
-   * This is a method that must be implemented by all classes inheriting from
-   * ContextObj.  See the comment before the class declaration.
-   */
-  virtual void restore(ContextObj* pContextObjRestore) = 0;
+    /**
+     * This is a method that must be implemented by all classes inheriting from
+     * ContextObj.  See the comment before the class declaration.
+     */
+    virtual void restore( ContextObj *pContextObjRestore ) = 0;
 
-  /**
-   * This method checks if the object has been modified in this Scope
-   * yet.  If not, it calls update().
-   */
-  inline void makeCurrent();
+    /**
+     * This method checks if the object has been modified in this Scope
+     * yet.  If not, it calls update().
+     */
+    inline void makeCurrent();
 
-  /**
-   * Just calls update(), but given a different name for the derived
-   * class-facing interface.  This is a "forced" makeCurrent(), useful
-   * for ContextObjs allocated in CMM that need a special "bottom"
-   * case when they disappear out of existence (kind of a destructor).
-   * See CDOhash_map (in cdhashmap.h) for an example.
-   */
-  inline void makeSaveRestorePoint();
+    /**
+     * Just calls update(), but given a different name for the derived
+     * class-facing interface.  This is a "forced" makeCurrent(), useful
+     * for ContextObjs allocated in CMM that need a special "bottom"
+     * case when they disappear out of existence (kind of a destructor).
+     * See CDOhash_map (in cdhashmap.h) for an example.
+     */
+    inline void makeSaveRestorePoint();
 
-  /**
-   * Should be called from sub-class destructor: calls restore until restored
-   * to initial version (version at context level 0).  Also removes object from
-   * all Scope lists.  Note that this doesn't actually free the memory
-   * allocated by the ContextMemoryManager for this object.  This isn't done
-   * until the corresponding Scope is popped.
-   */
-  void destroy();
+    /**
+     * Should be called from sub-class destructor: calls restore until restored
+     * to initial version (version at context level 0).  Also removes object from
+     * all Scope lists.  Note that this doesn't actually free the memory
+     * allocated by the ContextMemoryManager for this object.  This isn't done
+     * until the corresponding Scope is popped.
+     */
+    void destroy();
 
-  /////
-  //
-  //  These next four accessors return properties of the Scope to
-  //  derived classes without giving them the Scope object directly.
-  //
-  /////
+    /////
+    //
+    //  These next four accessors return properties of the Scope to
+    //  derived classes without giving them the Scope object directly.
+    //
+    /////
 
-  /**
-   * Get the Context with which this ContextObj was created.  This is
-   * part of the protected interface, intended for derived classes to
-   * use if necessary.
-   */
-  Context* getContext() const { return d_pScope->getContext(); }
+    /**
+     * Get the Context with which this ContextObj was created.  This is
+     * part of the protected interface, intended for derived classes to
+     * use if necessary.
+     */
+    Context *getContext() const
+    {
+        return d_pScope->getContext();
+    }
 
-  /**
-   * Get the ContextMemoryManager with which this ContextObj was
-   * created.  This is part of the protected interface, intended for
-   * derived classes to use if necessary.  If a ContextObj-derived
-   * class needs to allocate memory somewhere other than the save()
-   * member function (where it is explicitly given a
-   * ContextMemoryManager), it can use this accessor to get the memory
-   * manager.
-   */
-  ContextMemoryManager* getCMM() const { return d_pScope->getCMM(); }
+    /**
+     * Get the ContextMemoryManager with which this ContextObj was
+     * created.  This is part of the protected interface, intended for
+     * derived classes to use if necessary.  If a ContextObj-derived
+     * class needs to allocate memory somewhere other than the save()
+     * member function (where it is explicitly given a
+     * ContextMemoryManager), it can use this accessor to get the memory
+     * manager.
+     */
+    ContextMemoryManager *getCMM() const
+    {
+        return d_pScope->getCMM();
+    }
 
-  /**
-   * Get the level associated to this ContextObj.  Useful if a
-   * ContextObj-derived class needs to compare the level of its last
-   * update with another ContextObj.
-   */
-  int getLevel() const { return d_pScope->getLevel(); }
+    /**
+     * Get the level associated to this ContextObj.  Useful if a
+     * ContextObj-derived class needs to compare the level of its last
+     * update with another ContextObj.
+     */
+    int getLevel() const
+    {
+        return d_pScope->getLevel();
+    }
 
-  /**
-   * Returns true if the object is "current"-- that is, updated in the
-   * topmost contextual scope.  Useful if a ContextObj-derived class
-   * needs to determine if it has been modified in the current scope.
-   * Note that it is always safe to call makeCurrent() without first
-   * checking if the object is current, so this function need not be
-   * used under normal circumstances.
-   */
-  bool isCurrent() const { return d_pScope->isCurrent(); }
+    /**
+     * Returns true if the object is "current"-- that is, updated in the
+     * topmost contextual scope.  Useful if a ContextObj-derived class
+     * needs to determine if it has been modified in the current scope.
+     * Note that it is always safe to call makeCurrent() without first
+     * checking if the object is current, so this function need not be
+     * used under normal circumstances.
+     */
+    bool isCurrent() const
+    {
+        return d_pScope->isCurrent();
+    }
 
- public:
-  /**
-   * Disable delete: objects allocated with new(ContextMemorymanager) should
-   * never be deleted.  Objects allocated with new(bool) should be deleted by
-   * calling deleteSelf().
-   */
-  static void operator delete(void* pMem) {
-    AlwaysAssert(false) << "It is not allowed to delete a ContextObj this way!";
-  }
+public:
+    /**
+     * Disable delete: objects allocated with new(ContextMemorymanager) should
+     * never be deleted.  Objects allocated with new(bool) should be deleted by
+     * calling deleteSelf().
+     */
+    static void operator delete( void *pMem )
+    {
+        AlwaysAssert( false ) << "It is not allowed to delete a ContextObj this way!";
+    }
 
-  /**
-   * operator new using ContextMemoryManager (common case used by
-   * subclasses during save()).  No delete is required for memory
-   * allocated this way, since it is automatically released when the
-   * context is popped.  Also note that allocations using this
-   * operator never have their destructor called, so any clean-up has
-   * to be done using the restore method.
-   */
-  static void* operator new(size_t size, ContextMemoryManager* pCMM) {
-    Trace("context_mm") << "Context::new " << size << " in " << pCMM << std::endl;
-    return pCMM->newData(size);
-  }
+    /**
+     * operator new using ContextMemoryManager (common case used by
+     * subclasses during save()).  No delete is required for memory
+     * allocated this way, since it is automatically released when the
+     * context is popped.  Also note that allocations using this
+     * operator never have their destructor called, so any clean-up has
+     * to be done using the restore method.
+     */
+    static void *operator new( size_t size, ContextMemoryManager *pCMM )
+    {
+        Trace( "context_mm" ) << "Context::new " << size << " in " << pCMM << std::endl;
+        return pCMM->newData( size );
+    }
 
-  /**
-   * Corresponding placement delete.  Note that this is provided just
-   * to satisfy the requirement that a placement delete should be
-   * provided for every placement new.  It would only be called if a
-   * ContextObj constructor throws an exception after a successful
-   * call to the above new operator.
-   */
-  static void operator delete(void* pMem, ContextMemoryManager* pCMM) {}
+    /**
+     * Corresponding placement delete.  Note that this is provided just
+     * to satisfy the requirement that a placement delete should be
+     * provided for every placement new.  It would only be called if a
+     * ContextObj constructor throws an exception after a successful
+     * call to the above new operator.
+     */
+    static void operator delete( void *pMem, ContextMemoryManager *pCMM )
+    {
+    }
 
-  /**
-   * Create a new ContextObj.  The initial scope is set to the bottom
-   * scope of the Context.  Note that in the common case, the copy
-   * constructor is called to create new ContextObj objects.  The
-   * default copy constructor does the right thing, so we do not
-   * explicitly define it.
-   */
-  ContextObj(Context* context);
+    /**
+     * Create a new ContextObj.  The initial scope is set to the bottom
+     * scope of the Context.  Note that in the common case, the copy
+     * constructor is called to create new ContextObj objects.  The
+     * default copy constructor does the right thing, so we do not
+     * explicitly define it.
+     */
+    ContextObj( Context *context );
 
-  /**
-   * Create a new ContextObj.  This constructor takes an argument that
-   * specifies whether this ContextObj is itself allocated in context
-   * memory.  If it is, it's invalid below the current scope level, so
-   * we don't put it in scope 0.
-   *
-   * WARNING: Read the notes above on "Gotchas when allocating
-   * contextual objects with non-standard allocators."
-   */
-  ContextObj(bool allocatedInCMM, Context* context);
+    /**
+     * Create a new ContextObj.  This constructor takes an argument that
+     * specifies whether this ContextObj is itself allocated in context
+     * memory.  If it is, it's invalid below the current scope level, so
+     * we don't put it in scope 0.
+     *
+     * WARNING: Read the notes above on "Gotchas when allocating
+     * contextual objects with non-standard allocators."
+     */
+    ContextObj( bool allocatedInCMM, Context *context );
 
-  /**
-   * Destructor does nothing: subclass must explicitly call destroy() instead.
-   */
-  virtual ~ContextObj() {}
+    /**
+     * Destructor does nothing: subclass must explicitly call destroy() instead.
+     */
+    virtual ~ContextObj()
+    {
+    }
 
-  /**
-   * If you want to allocate a ContextObj object on the heap, use this
-   * special new operator.  To free this memory, instead of
-   * "delete p", use "p->deleteSelf()".
-   */
-  static void* operator new(size_t size, bool) {
-    return ::operator new(size);
-  }
+    /**
+     * If you want to allocate a ContextObj object on the heap, use this
+     * special new operator.  To free this memory, instead of
+     * "delete p", use "p->deleteSelf()".
+     */
+    static void *operator new( size_t size, bool )
+    {
+        return ::operator new( size );
+    }
 
-  /**
-   * Corresponding placement delete.  Note that this is provided for
-   * the compiler in case the ContextObj constructor throws an
-   * exception.  The client can't call it.
-   */
-  static void operator delete(void* pMem, bool) {
-    ::operator delete(pMem);
-  }
+    /**
+     * Corresponding placement delete.  Note that this is provided for
+     * the compiler in case the ContextObj constructor throws an
+     * exception.  The client can't call it.
+     */
+    static void operator delete( void *pMem, bool )
+    {
+        ::operator delete( pMem );
+    }
 
-  /**
-   * Use this instead of delete to delete memory allocated using the special
-   * new function provided above that takes a bool argument.  Do not call this
-   * function on memory allocated using the new that takes a
-   * ContextMemoryManager as an argument.
-   */
-  void deleteSelf() {
-    Debug("context") << "deleteSelf(" << this << ") " << typeid(*this).name() << std::endl;
-    this->~ContextObj();
-    ::operator delete(this);
-  }
+    /**
+     * Use this instead of delete to delete memory allocated using the special
+     * new function provided above that takes a bool argument.  Do not call this
+     * function on memory allocated using the new that takes a
+     * ContextMemoryManager as an argument.
+     */
+    void deleteSelf()
+    {
+        Debug( "context" ) << "deleteSelf(" << this << ") " << typeid( *this ).name() << std::endl;
+        this->~ContextObj();
+        ::operator delete( this );
+    }
 
-  /**
-   * Use this to enqueue calling deleteSelf() at the time of the destruction of
-   * the enclosing Scope.
-   */
-  void enqueueToGarbageCollect();
+    /**
+     * Use this to enqueue calling deleteSelf() at the time of the destruction of
+     * the enclosing Scope.
+     */
+    void enqueueToGarbageCollect();
 
-};/* class ContextObj */
+}; /* class ContextObj */
 
 /**
  * For more flexible context-dependent behavior than that provided by
@@ -665,84 +728,94 @@ class ContextObj {
  * Context (you can choose to have notification come before or after
  * the ContextObj objects have been restored).
  */
-class ContextNotifyObj {
+class ContextNotifyObj
+{
+    /**
+     * Context is our friend so that when the Context is deleted, any
+     * remaining ContextNotifyObj can be removed from the Context list.
+     */
+    friend class Context;
 
-  /**
-   * Context is our friend so that when the Context is deleted, any
-   * remaining ContextNotifyObj can be removed from the Context list.
-   */
-  friend class Context;
+    /**
+     * Pointer to next ContextNotifyObject in this List
+     */
+    ContextNotifyObj *d_pCNOnext;
 
-  /**
-   * Pointer to next ContextNotifyObject in this List
-   */
-  ContextNotifyObj* d_pCNOnext;
+    /**
+     * Pointer to previous ContextNotifyObject in this list
+     */
+    ContextNotifyObj **d_ppCNOprev;
 
-  /**
-   * Pointer to previous ContextNotifyObject in this list
-   */
-  ContextNotifyObj** d_ppCNOprev;
+    /**
+     * Return reference to next link in ContextNotifyObj list.  Used by
+     * Context::addNotifyObj methods.
+     */
+    ContextNotifyObj *&next()
+    {
+        return d_pCNOnext;
+    }
 
-  /**
-   * Return reference to next link in ContextNotifyObj list.  Used by
-   * Context::addNotifyObj methods.
-   */
-  ContextNotifyObj*& next() { return d_pCNOnext; }
+    /**
+     * Return reference to prev link in ContextNotifyObj list.  Used by
+     * Context::addNotifyObj methods.
+     */
+    ContextNotifyObj **&prev()
+    {
+        return d_ppCNOprev;
+    }
 
-  /**
-   * Return reference to prev link in ContextNotifyObj list.  Used by
-   * Context::addNotifyObj methods.
-   */
-  ContextNotifyObj**& prev() { return d_ppCNOprev; }
-
- protected:
-  /**
-   * This is the method called to notify the object of a pop.  It must be
-   * implemented by the subclass. It is protected since context is out
-   * friend.
-   */
-  virtual void contextNotifyPop() = 0;
+protected:
+    /**
+     * This is the method called to notify the object of a pop.  It must be
+     * implemented by the subclass. It is protected since context is out
+     * friend.
+     */
+    virtual void contextNotifyPop() = 0;
 
 public:
+    /**
+     * Constructor for ContextNotifyObj.  Parameters are the context to
+     * which this notify object will be added, and a flag which, if
+     * true, tells the context to notify this object *before* the
+     * ContextObj objects are restored.  Otherwise, the context notifies
+     * the object after the ContextObj objects are restored.  The
+     * default is for notification after.
+     */
+    ContextNotifyObj( Context *pContext, bool preNotify = false );
 
-  /**
-   * Constructor for ContextNotifyObj.  Parameters are the context to
-   * which this notify object will be added, and a flag which, if
-   * true, tells the context to notify this object *before* the
-   * ContextObj objects are restored.  Otherwise, the context notifies
-   * the object after the ContextObj objects are restored.  The
-   * default is for notification after.
-   */
-  ContextNotifyObj(Context* pContext, bool preNotify = false);
+    /**
+     * Destructor: removes object from list
+     */
+    virtual ~ContextNotifyObj();
 
-  /**
-   * Destructor: removes object from list
-   */
-  virtual ~ContextNotifyObj();
-
-};/* class ContextNotifyObj */
+}; /* class ContextNotifyObj */
 
 inline void ContextObj::makeCurrent()
 {
-  if(!(d_pScope->isCurrent())) {
-    update();
-  }
+    if ( !( d_pScope->isCurrent() ) )
+    {
+        update();
+    }
 }
 
-inline void ContextObj::makeSaveRestorePoint() { update(); }
-
-inline void Scope::addToChain(ContextObj* pContextObj)
+inline void ContextObj::makeSaveRestorePoint()
 {
-  if(d_pContextObjList != NULL) {
-    d_pContextObjList->prev() = &pContextObj->next();
-  }
-
-  pContextObj->next() = d_pContextObjList;
-  pContextObj->prev() = &d_pContextObjList;
-  d_pContextObjList = pContextObj;
+    update();
 }
 
-}/* CVC4::context namespace */
-}/* CVC4 namespace */
+inline void Scope::addToChain( ContextObj *pContextObj )
+{
+    if ( d_pContextObjList != NULL )
+    {
+        d_pContextObjList->prev() = &pContextObj->next();
+    }
+
+    pContextObj->next() = d_pContextObjList;
+    pContextObj->prev() = &d_pContextObjList;
+    d_pContextObjList = pContextObj;
+}
+
+} // namespace context
+} // namespace CVC4
 
 #endif /* CVC4__CONTEXT__CONTEXT_H */

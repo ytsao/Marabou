@@ -30,9 +30,8 @@
 
 namespace CVC4 {
 namespace context {
-template <class V, class HashFcn = std::hash<V> >
-class CDHashSet;
-}  // namespace context
-}  // namespace CVC4
+template <class V, class HashFcn = std::hash<V>> class CDHashSet;
+} // namespace context
+} // namespace CVC4
 
 #endif /* CVC4__CONTEXT__CDSET_FORWARD_H */

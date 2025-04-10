@@ -39,18 +39,20 @@
 namespace CVC4 {
 namespace context {
 
-template <class T>
-class DefaultCleanUp {
+template <class T> class DefaultCleanUp
+{
 public:
-  inline void operator()(T* t CVC4_UNUSED) const{}
+    inline void operator()( T *t CVC4_UNUSED ) const
+    {
+    }
 };
 
-template <class T, class CleanUp = DefaultCleanUp<T>, class Allocator = std::allocator<T> >
+template <class T, class CleanUp = DefaultCleanUp<T>, class Allocator = std::allocator<T>>
 class CDList;
 
 /// \endcond
 
-}/* CVC4::context namespace */
-}/* CVC4 namespace */
+} // namespace context
+} // namespace CVC4
 
 #endif /* CVC4__CONTEXT__CDLIST_FORWARD_H */

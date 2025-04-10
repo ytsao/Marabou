@@ -1,5 +1,6 @@
-#include <T/stdlib.h>
 #include "Dice.h"
+
+#include <T/stdlib.h>
 
 Dice::Dice()
 {
@@ -8,7 +9,5 @@ Dice::Dice()
 
 unsigned Dice::roll()
 {
-    return (T::rand() % 6) + 1;
+    return ( T::rand() % 6 ) + 1;
 }
-
-

@@ -32,11 +32,10 @@
 
 
 namespace CVC4 {
-  namespace context {
-    template <class Key, class Data, class HashFcn = std::hash<Key> >
-    class CDHashMap;
-  }/* CVC4::context namespace */
-}/* CVC4 namespace */
+namespace context {
+template <class Key, class Data, class HashFcn = std::hash<Key>> class CDHashMap;
+} // namespace context
+} // namespace CVC4
 
 /// \endcond
 

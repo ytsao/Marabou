@@ -1,6 +1,7 @@
-#include <cxxtest/TestSuite.h>
 #include "Dice.h"
 #include "MockStdlib.h"
+
+#include <cxxtest/TestSuite.h>
 
 class TestDice : public CxxTest::TestSuite
 {
@@ -16,14 +17,14 @@ public:
     {
         delete stdlib;
     }
-    
+
     void test_Randomize_uses_time()
     {
         stdlib->nextTime = 12345;
         Dice dice;
         TS_ASSERT_EQUALS( stdlib->lastSeed, 12345 );
     }
-    
+
     void test_Roll()
     {
         Dice dice;
@@ -47,15 +48,21 @@ public:
 
         stdlib->nextRand = 2;
         TS_ASSERT_EQUALS( dice.roll(), 3 );
-        
-        class Five : public T::Base_rand { int rand() { return 5; } };
+
+        class Five : public T::Base_rand
+        {
+            int rand()
+            {
+                return 5;
+            }
+        };
 
         Five *five = new Five;
         TS_ASSERT_EQUALS( dice.roll(), 6 );
         TS_ASSERT_EQUALS( dice.roll(), 6 );
         TS_ASSERT_EQUALS( dice.roll(), 6 );
         delete five;
-        
+
         stdlib->nextRand = 1;
         TS_ASSERT_EQUALS( dice.roll(), 2 );
     }

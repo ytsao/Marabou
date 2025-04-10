@@ -477,6 +477,358 @@ solve( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "
 }
 
 std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
+{
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, std::tuple<double, double>> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with DeepPoly ... \n" );
+        options.setOptions();
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+        {
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+        }
+
+        if ( !engine.solveWithDeepPoly( inputQuery ) )
+        {
+            std::string exitCode = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+        }
+
+        // Extract bounds
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        }
+
+        // unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
+        // engine.solveWithDeepPoly( inputQuery );
+
+        // resultString = exitCodeToString( engine.getExitCode() );
+        // if ( engine.getExitCode() == Engine::SAT )
+        // {
+        //     engine.extractSolution( inputQuery );
+        //     for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        //     {
+        //         ret[i] = inputQuery.getSolutionValue( i );
+        //         py::print( "Variable ", i, " = ", ret[i] );
+        //     }
+        // }
+
+        // // for test, print the solution for each neuron
+        // // test result: I can access the solution for each neuron.
+        // //
+        // // How to get the bound for each neuron?
+        // // -> by using the getLowerBound and getUpperBound functions in InputQuery.
+        // // engine.extractSolution( inputQuery );
+        // py::print( "the number of variables: ", inputQuery.getNumberOfVariables() );
+        // engine.extractBounds( inputQuery );
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // // Solutions
+        //     // ret[i] = inputQuery.getSolutionValue( i );
+        //     // py::print( "Variable ", i, " = ", ret[i] );
+
+        //     // Bounds
+        //     // Q1. Why the bounds of neurons in the intermediate & output layers are not
+        //     tightened?
+        //     // ->
+        //     py::print( "==========================" );
+        //     py::print( "Lower bound for variable ", i, " = ", inputQuery.getLowerBound( i ) );
+        //     py::print( "Upper bound for variable ", i, " = ", inputQuery.getUpperBound( i ) );
+        //     py::print( "==========================" );
+        // }
+
+        // retStats = *( engine.getStatistics() );
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+solveWithIntervalArithmetic( InputQuery &inputQuery,
+                             MarabouOptions &options,
+                             std::string redirect = "" )
+{
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, std::tuple<double, double>> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with Interval Arithmetic ... (test) \n" );
+        options.setOptions();
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+        {
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+        }
+
+        if ( !engine.solveWithIntervalArithmetic( inputQuery ) )
+        {
+            std::string exitCode = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+        }
+
+
+        // Extract bounds
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        }
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
+{
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, std::tuple<double, double>> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with Symbolic\n" );
+
+        options.setOptions();
+        // set the symbolic bound tightening type as sbt,
+        // since the default value is "deeppoly"
+        Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+        {
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+        }
+
+        if ( !engine.solveWithSymbolic( inputQuery ) )
+        {
+            std::string exitCode = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+        }
+
+        // Extract bounds
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        }
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+
+std::tuple<std::string, std::map<int, double>, Statistics>
+solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
+{
+    // TODO: add BFA procedure into it.
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, double> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with DeepPoly BFA\n" );
+        options.setOptions();
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+
+        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
+        engine.solveWithDeepPolyBFA( timeoutInSeconds );
+
+        resultString = exitCodeToString( engine.getExitCode() );
+
+        if ( engine.getExitCode() == Engine::SAT )
+        {
+            engine.extractSolution( inputQuery );
+            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+                ret[i] = inputQuery.getSolutionValue( i );
+        }
+
+        retStats = *( engine.getStatistics() );
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+std::tuple<std::string, std::map<int, double>, Statistics>
+solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
+                                MarabouOptions &options,
+                                std::string redirect = "" )
+{
+    // TODO: add BFA procedure into it.
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, double> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with Interval Arithmetic BFA\n" );
+        options.setOptions();
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+
+        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
+        engine.solveWithIntervalArithmeticBFA( timeoutInSeconds );
+
+        resultString = exitCodeToString( engine.getExitCode() );
+
+        if ( engine.getExitCode() == Engine::SAT )
+        {
+            engine.extractSolution( inputQuery );
+            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+                ret[i] = inputQuery.getSolutionValue( i );
+        }
+
+        retStats = *( engine.getStatistics() );
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+std::tuple<std::string, std::map<int, double>, Statistics>
+solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
+{
+    // TODO: add BFA procedure into it.
+    // Arguments: InputQuery object, filename to redirect output
+    // Returns: map from variable number to value
+    std::string resultString = "";
+    std::map<int, double> ret;
+    Statistics retStats;
+    int output = -1;
+    if ( redirect.length() > 0 )
+        redirectOutputToFile( redirect );
+    try
+    {
+        py::print( "Solving with Symbolic BFA\n" );
+        options.setOptions();
+        Engine engine;
+        if ( !engine.processInputQuery( inputQuery ) )
+            return std::make_tuple(
+                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+
+        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
+        engine.solveWithSymbolicBFA( timeoutInSeconds );
+
+        resultString = exitCodeToString( engine.getExitCode() );
+
+        if ( engine.getExitCode() == Engine::SAT )
+        {
+            engine.extractSolution( inputQuery );
+            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+                ret[i] = inputQuery.getSolutionValue( i );
+        }
+
+        retStats = *( engine.getStatistics() );
+    }
+    catch ( const MarabouError &e )
+    {
+        fprintf( stderr,
+                 "Caught a MarabouError. Code: %u. Message: %s\n",
+                 e.getCode(),
+                 e.getUserMessage() );
+        return std::make_tuple( "ERROR", ret, retStats );
+    }
+    if ( output != -1 )
+        restoreOutputStream( output );
+    return std::make_tuple( resultString, ret, retStats );
+}
+
+unsigned getNumberOfLayers( InputQuery &inputQuery )
+{
+    // Returns the number of layers in the input query
+    Engine engine;
+
+    if ( !engine.processInputQuery( inputQuery ) )
+        return 0;
+
+    return engine.getNumberOfLayers();
+}
+
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
 calculateBounds( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
     // Arguments: InputQuery object, filename to redirect output
@@ -591,6 +943,114 @@ PYBIND11_MODULE( MarabouCore, m )
            py::arg( "inputQuery" ),
            py::arg( "options" ),
            py::arg( "redirect" ) = "" );
+    m.def( "solveWithDeepPoly",
+           &solveWithDeepPoly,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using DeepPoly 
+            
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+        
+        )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "solveWithIntervalArithmetic",
+           &solveWithIntervalArithmetic,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using Interval Arithmetic 
+            
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+        
+        )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "solveWithSymbolic",
+           &solveWithSymbolic,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using Symbolic 
+            
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+        
+        )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "solveWithDeepPolyBFA",
+           &solveWithDeepPolyBFA,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using DeepPoly BFA 
+            
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+        
+        )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "solveWithIntervalArithmeticBFA",
+           &solveWithIntervalArithmeticBFA,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using Interval Arithmetic BFA 
+                
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+          
+          )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "solveWithSymbolicBFA",
+           &solveWithSymbolicBFA,
+           R"pbdoc(
+        Takes in a description of the InputQuery and returns the solution using Symbolic BFA 
+                    
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
+            redirect (str, optional): Filepath to direct standard output, defaults to ""
+        Returns:
+            (bool): True if the query is satisfiable, False otherwise
+            
+        )pbdoc",
+           py::arg( "inputQuery" ),
+           py::arg( "options" ),
+           py::arg( "redirect" ) = "" );
+    m.def( "getNumberOfLayers",
+           &getNumberOfLayers,
+           R"pbdoc(
+        Get the number of layers in the input query
+        
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query which bounds are calculated
+        
+        Returns:
+            numLayers (unsigned): Number of layers in the network 
+        )pbdoc",
+           py::arg( "inputQuery" ) );
     m.def( "calculateBounds",
            &calculateBounds,
            R"pbdoc(

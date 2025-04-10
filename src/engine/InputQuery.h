@@ -187,6 +187,8 @@ private:
     IndexVariableMap _inputIndexToVariable;
     VariableIndexMap _variableToOutputIndex;
     IndexVariableMap _outputIndexToVariable;
+    // TODO: maybe I need to introduce the mapping between variable to intermediate index
+    // TODO: and intermediate index to variable
 
     /*
       Stores the satisfying assignment.

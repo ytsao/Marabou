@@ -21,81 +21,98 @@
 
 #pragma once
 
-#include <vector>
-
-#include "context/context.h"
-#include "context/cdlist_forward.h"
 #include "context/cdlist.h"
-
+#include "context/cdlist_forward.h"
+#include "context/context.h"
 #include "util/index.h"
+
+#include <vector>
 
 namespace CVC4 {
 namespace context {
 
-template <class CleanUp = DefaultCleanUp<Index> >
-class CDDenseSet {
+template <class CleanUp = DefaultCleanUp<Index>> class CDDenseSet
+{
 public:
-  typedef Index Element;
+    typedef Index Element;
 
 private:
+    class RemoveIntCleanup
+    {
+    private:
+        std::vector<bool> &d_set;
 
-  class RemoveIntCleanup {
-  private:
-    std::vector<bool>& d_set;
+        /**
+         * The CleanUp functor.
+         */
+        CleanUp d_cleanUp;
 
-    /**
-     * The CleanUp functor.
-     */
-    CleanUp d_cleanUp;
-  public:
-    RemoveIntCleanup(std::vector<bool>& set, const CleanUp& cleanup)
-      : d_set(set), d_cleanUp(cleanup)
-    {}
+    public:
+        RemoveIntCleanup( std::vector<bool> &set, const CleanUp &cleanup )
+            : d_set( set )
+            , d_cleanUp( cleanup )
+        {
+        }
 
-    void operator()(Element* p){
-      d_cleanup(p);
+        void operator()( Element *p )
+        {
+            d_cleanup( p );
 
-      ArithVar x = *p;
-      Assert(d_set[x]);
-      d_set[x] = false;
-    }
-  };
+            ArithVar x = *p;
+            Assert( d_set[x] );
+            d_set[x] = false;
+        }
+    };
 
-  typedef CDList<Element, RemoveIntCleanup> ElementList;
-  ElementList d_list;
+    typedef CDList<Element, RemoveIntCleanup> ElementList;
+    ElementList d_list;
 
-  std::vector<bool> d_set;
+    std::vector<bool> d_set;
 
 public:
-  typedef ElementList::const_iterator const_iterator;
+    typedef ElementList::const_iterator const_iterator;
 
-  CDDenseSet(context::Context* c, const CleanUp& cleanup = CleanUp())
-    : d_set(), d_list(c, true, RemoveIntCleanup(d_set, cleanup))
-  { }
-
-  /** This cannot be const as garbage collection is done lazily. */
-  bool contains(Element x) const{
-    if(x < d_set.size()){
-      return d_set[x];
-    }else{
-      return false;
+    CDDenseSet( context::Context *c, const CleanUp &cleanup = CleanUp() )
+        : d_set()
+        , d_list( c, true, RemoveIntCleanup( d_set, cleanup ) )
+    {
     }
-  }
 
-  void insert(Element x){
-    Assert(!contains(x));
-    if(x >= d_set.size()){
-      d_set.resize(x+1, false);
+    /** This cannot be const as garbage collection is done lazily. */
+    bool contains( Element x ) const
+    {
+        if ( x < d_set.size() )
+        {
+            return d_set[x];
+        }
+        else
+        {
+            return false;
+        }
     }
-    d_list.push_back(x);
-    d_set[x] = true;
-  }
 
-  const_iterator begin() const { return d_list.begin(); }
-  const_iterator end() const { return d_list.end(); }
+    void insert( Element x )
+    {
+        Assert( !contains( x ) );
+        if ( x >= d_set.size() )
+        {
+            d_set.resize( x + 1, false );
+        }
+        d_list.push_back( x );
+        d_set[x] = true;
+    }
 
-};/* class CDDenseSet<> */
+    const_iterator begin() const
+    {
+        return d_list.begin();
+    }
+    const_iterator end() const
+    {
+        return d_list.end();
+    }
+
+}; /* class CDDenseSet<> */
 
 
-}/* CVC4::context namespace */
-}/* CVC4 namespace */
+} // namespace context
+} // namespace CVC4

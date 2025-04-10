@@ -27,52 +27,60 @@
 namespace CVC4 {
 namespace context {
 
-class CDRaised {
+class CDRaised
+{
 private:
-  context::CDO<bool> d_flag;
+    context::CDO<bool> d_flag;
 
 public:
- CDRaised(context::Context* c)
- : d_flag(c, false)
- {}
+    CDRaised( context::Context *c )
+        : d_flag( c, false )
+    {
+    }
 
 
-  bool isRaised() const {
-    return d_flag.get();
-  }
+    bool isRaised() const
+    {
+        return d_flag.get();
+    }
 
-  void raise(){
-    Assert(!isRaised());
-    d_flag.set(true);
-  }
+    void raise()
+    {
+        Assert( !isRaised() );
+        d_flag.set( true );
+    }
 
-};/* class CDRaised */
+}; /* class CDRaised */
 
-template <class T>
-class CDMaybe {
+template <class T> class CDMaybe
+{
 private:
-  typedef std::pair<bool, T> BoolTPair;
-  context::CDO<BoolTPair> d_data;
+    typedef std::pair<bool, T> BoolTPair;
+    context::CDO<BoolTPair> d_data;
 
 public:
-  CDMaybe(context::Context* c) : d_data(c, std::make_pair(false, T()))
-  {}
+    CDMaybe( context::Context *c )
+        : d_data( c, std::make_pair( false, T() ) )
+    {
+    }
 
-  bool isSet() const {
-    return d_data.get().first;
-  }
+    bool isSet() const
+    {
+        return d_data.get().first;
+    }
 
-  void set(const T& d){
-    Assert(!isSet());
-    d_data.set(std::make_pair(true, d));
-  }
+    void set( const T &d )
+    {
+        Assert( !isSet() );
+        d_data.set( std::make_pair( true, d ) );
+    }
 
-  const T& get() const{
-    Assert(isSet());
-    return d_data.get().second;
-  }
-};/* class CDMaybe<T> */
+    const T &get() const
+    {
+        Assert( isSet() );
+        return d_data.get().second;
+    }
+}; /* class CDMaybe<T> */
 
-}/* CVC4::context namespace */
-}/* CVC4 namespace */
-
+} // namespace context
+} // namespace CVC4

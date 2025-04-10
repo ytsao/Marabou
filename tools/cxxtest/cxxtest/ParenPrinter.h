@@ -9,13 +9,15 @@
 
 #include <cxxtest/ErrorPrinter.h>
 
-namespace CxxTest 
+namespace CxxTest {
+class ParenPrinter : public ErrorPrinter
 {
-    class ParenPrinter : public ErrorPrinter
+public:
+    ParenPrinter( CXXTEST_STD( ostream ) &o = CXXTEST_STD( cout ) )
+        : ErrorPrinter( o, "(", ")" )
     {
-    public:
-        ParenPrinter( CXXTEST_STD(ostream) &o = CXXTEST_STD(cout) ) : ErrorPrinter( o, "(", ")" ) {}
-    };
-}
+    }
+};
+} // namespace CxxTest
 
 #endif // __cxxtest__ParenPrinter_h__

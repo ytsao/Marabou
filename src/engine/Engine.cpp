@@ -455,6 +455,314 @@ bool Engine::solve( double timeoutInSeconds )
     }
 }
 
+// Todo: implement those functions.
+// * ref: Test files, to see how to use those built-in functions.
+bool Engine::solveWithDeepPoly( const IQuery &inputQuery )
+{
+    // ref: solve();
+    // SignalHandler::getInstance()->initialize();
+    // SignalHandler::getInstance()->registerClient( this );
+
+    // // Register the boundManager for all the PL constraints
+    // for ( auto &plConstraint : _plConstraints )
+    //     plConstraint->registerBoundManager( &_boundManager );
+    // for ( auto &nlConstraint : _nlConstraints )
+    //     nlConstraint->registerBoundManager( &_boundManager );
+
+    // // Before encoding, make sure all valid constraints are applied.
+    // applyAllValidConstraintCaseSplits();
+
+    // updateDirections();
+    // mainLoopStatistics();
+
+    // List<Tightening> bounds;
+    // _networkLevelReasoner->obtainCurrentBounds();
+    // _networkLevelReasoner->deepPolyPropagation();
+    // _networkLevelReasoner->getConstraintTightenings( bounds );
+
+    // for ( const auto &bound : bounds )
+    // {
+    //     printf( "DeepPoly: value = %f\n", bound._value );
+    // }
+
+    // return false;
+
+    //
+    // New implementation, ref: calculateBounds(const IQuery &inputQuery)
+    ENGINE_LOG( "calculate bounds with DeepPoly." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // DeepPoly
+        _networkLevelReasoner->deepPolyPropagation();
+
+        // Extract the bounds
+        List<Tightening> bounds;
+        _networkLevelReasoner->getConstraintTightenings( bounds );
+
+        // Update the bounds;
+        if ( _preprocessedQuery )
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value,
+                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        else
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                {
+                    _tableau->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _tableau->getUpperBound( bound._variable ) ) )
+                {
+                    _tableau->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "DeepPoly done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "DeepPoly done\n" );
+
+    return true;
+}
+
+bool Engine::solveWithIntervalArithmetic( const IQuery &inputQuery )
+{
+    ENGINE_LOG( "calculate bounds with IntervalArithmetic." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // DeepPoly
+        _networkLevelReasoner->intervalArithmeticBoundPropagation();
+
+        // Extract the bounds
+        List<Tightening> bounds;
+        _networkLevelReasoner->getConstraintTightenings( bounds );
+
+        // Update the bounds;
+        if ( _preprocessedQuery )
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value,
+                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        else
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                {
+                    _tableau->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _tableau->getUpperBound( bound._variable ) ) )
+                {
+                    _tableau->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "IntervalArithmetic done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "IntervalArithmetic done\n" );
+
+    return true;
+}
+
+bool Engine::solveWithSymbolic( const IQuery &inputQuery )
+{
+    ENGINE_LOG( "calculate bounds with Symbolic." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // DeepPoly
+        _networkLevelReasoner->symbolicBoundPropagation();
+
+        // Extract the bounds
+        List<Tightening> bounds;
+        _networkLevelReasoner->getConstraintTightenings( bounds );
+
+        // Update the bounds;
+        if ( _preprocessedQuery )
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value,
+                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        else
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                {
+                    _tableau->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _tableau->getUpperBound( bound._variable ) ) )
+                {
+                    _tableau->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "Symbolic done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "Symbolic done\n" );
+
+    return true;
+}
+
+bool Engine::solveWithDeepPolyBFA( double timeoutInSeconds )
+{
+    return false;
+}
+
+bool Engine::solveWithIntervalArithmeticBFA( double timeoutInSeconds )
+{
+    return false;
+}
+
+bool Engine::solveWithSymbolicBFA( double timeoutInSeconds )
+{
+    return false;
+}
+
 void Engine::mainLoopStatistics()
 {
     struct timespec start = TimeUtils::sampleMicro();
@@ -3879,4 +4187,12 @@ void Engine::addPLCLemma( std::shared_ptr<PLCLemma> &explanation )
     ASSERT( explanation && _UNSATCertificate && _UNSATCertificateCurrentPointer )
     _statistics.incUnsignedAttribute( Statistics::NUM_LEMMAS );
     _UNSATCertificateCurrentPointer->get()->addPLCLemma( explanation );
+}
+
+unsigned Engine::getNumberOfLayers() const
+{
+    if ( _networkLevelReasoner )
+        return _networkLevelReasoner->getNumberOfLayers();
+    else
+        return 0;
 }

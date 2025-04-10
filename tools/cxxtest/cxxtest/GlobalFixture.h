@@ -3,28 +3,26 @@
 
 #include <cxxtest/LinkedList.h>
 
-namespace CxxTest 
+namespace CxxTest {
+class GlobalFixture : public Link
 {
-    class GlobalFixture : public Link
-    {
-    public:
-        virtual bool setUpWorld();
-        virtual bool tearDownWorld();
-        virtual bool setUp();
-        virtual bool tearDown();
-        
-        GlobalFixture();
-        ~GlobalFixture();
-        
-        static GlobalFixture *firstGlobalFixture();
-        static GlobalFixture *lastGlobalFixture();
-        GlobalFixture *nextGlobalFixture();
-        GlobalFixture *prevGlobalFixture();
+public:
+    virtual bool setUpWorld();
+    virtual bool tearDownWorld();
+    virtual bool setUp();
+    virtual bool tearDown();
 
-    private:
-        static List _list;
-    };
-}
+    GlobalFixture();
+    ~GlobalFixture();
+
+    static GlobalFixture *firstGlobalFixture();
+    static GlobalFixture *lastGlobalFixture();
+    GlobalFixture *nextGlobalFixture();
+    GlobalFixture *prevGlobalFixture();
+
+private:
+    static List _list;
+};
+} // namespace CxxTest
 
 #endif // __cxxtest__GlobalFixture_h__
-

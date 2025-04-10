@@ -1,13 +1,13 @@
 #include <T/stdlib.h>
 
-class MockStdlib :
-    public T::Base_srand,
-    public T::Base_rand,
-    public T::Base_time
+class MockStdlib
+    : public T::Base_srand
+    , public T::Base_rand
+    , public T::Base_time
 {
 public:
     unsigned lastSeed;
-    
+
     void srand( unsigned seed )
     {
         lastSeed = seed;

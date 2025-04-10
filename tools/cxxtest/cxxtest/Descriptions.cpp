@@ -3,56 +3,63 @@
 
 #include <cxxtest/Descriptions.h>
 
-namespace CxxTest
+namespace CxxTest {
+TestDescription::~TestDescription()
 {
-    TestDescription::~TestDescription() {}
-    SuiteDescription::~SuiteDescription() {}
-    WorldDescription::~WorldDescription() {}
-    
-    //
-    // Convert total tests to string
-    //
+}
+SuiteDescription::~SuiteDescription()
+{
+}
+WorldDescription::~WorldDescription()
+{
+}
+
+//
+// Convert total tests to string
+//
 #ifndef _CXXTEST_FACTOR
-    char *WorldDescription::strTotalTests( char *s ) const
-    {
-        numberToString( numTotalTests(), s );
+char *WorldDescription::strTotalTests( char *s ) const
+{
+    numberToString( numTotalTests(), s );
+    return s;
+}
+#else  // _CXXTEST_FACTOR
+char *WorldDescription::strTotalTests( char *s ) const
+{
+    char *p = numberToString( numTotalTests(), s );
+
+    if ( numTotalTests() <= 1 )
         return s;
-    }
-#else // _CXXTEST_FACTOR
-    char *WorldDescription::strTotalTests( char *s ) const
+
+    unsigned n = numTotalTests();
+    unsigned numFactors = 0;
+
+    for ( unsigned factor = 2; ( factor * factor ) <= n; factor += ( factor == 2 ) ? 1 : 2 )
     {
-        char *p = numberToString( numTotalTests(), s );
+        unsigned power;
 
-        if ( numTotalTests() <= 1 )
-            return s;
+        for ( power = 0; ( n % factor ) == 0; n /= factor )
+            ++power;
 
-        unsigned n = numTotalTests();
-        unsigned numFactors = 0;
+        if ( !power )
+            continue;
 
-        for ( unsigned factor = 2; (factor * factor) <= n; factor += (factor == 2) ? 1 : 2 ) {
-            unsigned power;
-
-            for ( power = 0; (n % factor) == 0; n /= factor )
-                ++ power;
-
-            if ( !power )
-                continue;
-
-            p = numberToString( factor, copyString( p, (numFactors == 0) ? " = " : " * " ) );
-            if ( power > 1 )
-                p = numberToString( power, copyString( p, "^" ) );
-            ++ numFactors;
-        }
-
-        if ( n > 1 ) {
-            if ( !numFactors )
-                copyString( p, tracker().failedTests() ? " :(" : tracker().warnings() ? " :|" : " :)" );
-            else
-                numberToString( n, copyString( p, " * " ) );
-        }
-        return s;
+        p = numberToString( factor, copyString( p, ( numFactors == 0 ) ? " = " : " * " ) );
+        if ( power > 1 )
+            p = numberToString( power, copyString( p, "^" ) );
+        ++numFactors;
     }
+
+    if ( n > 1 )
+    {
+        if ( !numFactors )
+            copyString( p, tracker().failedTests() ? " :(" : tracker().warnings() ? " :|" : " :)" );
+        else
+            numberToString( n, copyString( p, " * " ) );
+    }
+    return s;
+}
 #endif // _CXXTEST_FACTOR
-};
+};     // namespace CxxTest
 
 #endif // __cxxtest__Descriptions_cpp__

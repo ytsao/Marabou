@@ -7,7 +7,7 @@
 class DeltaTest : public CxxTest::TestSuite
 {
     double _pi, _delta;
-    
+
 public:
     void setUp()
     {
@@ -17,10 +17,10 @@ public:
 
     void testSine()
     {
-        TS_ASSERT_DELTA( sin(0.0), 0.0, _delta );
-        TS_ASSERT_DELTA( sin(_pi / 6), 0.5, _delta );
-        TS_ASSERT_DELTA( sin(_pi / 2), 1.0, _delta );
-        TS_ASSERT_DELTA( sin(_pi), 0.0, _delta );
+        TS_ASSERT_DELTA( sin( 0.0 ), 0.0, _delta );
+        TS_ASSERT_DELTA( sin( _pi / 6 ), 0.5, _delta );
+        TS_ASSERT_DELTA( sin( _pi / 2 ), 1.0, _delta );
+        TS_ASSERT_DELTA( sin( _pi ), 0.0, _delta );
     }
 };
 

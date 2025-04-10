@@ -14,15 +14,16 @@
 class FixtureTest : public CxxTest::TestSuite
 {
     char *_buffer;
+
 public:
     void setUp()
     {
         _buffer = new char[1024];
     }
-    
+
     void tearDown()
     {
-        delete [] _buffer;
+        delete[] _buffer;
     }
 
     void test_strcpy()
