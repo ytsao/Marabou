@@ -177,6 +177,55 @@ void DeepPolyAnalysis::run()
     }
 }
 
+void DeepPolyAnalysis::runForOneLayer( unsigned targetIndex )
+{
+    struct timespec deepPolyStartForOneLayer;
+    (void)deepPolyStartForOneLayer;
+    struct timespec deepPolyEndForOneLayer;
+    (void)deepPolyEndForOneLayer;
+
+    deepPolyStartForOneLayer = TimeUtils::sampleMicro();
+
+    NLR::Layer targetLayer = _layerOwner->getLayer( targetIndex );
+
+    ASSERT( _deepPolyElements.exists( targetIndex ) );
+    log( Stringf( "Running deeppoly analysis for layer %u...", targetIndex ) );
+    DeepPolyElement *deepPolyElement = _deepPolyElements[targetIndex];
+    deepPolyElement->execute( _deepPolyElements );
+
+    // Extract updated bounds
+    for ( unsigned j = 0; j < deepPolyElement->getSize(); ++j )
+    {
+        if ( targetLayer.neuronEliminated( j ) )
+            continue;
+        double lb = deepPolyElement->getLowerBound( j );
+        if ( targetLayer.getLb( j ) < lb )
+        {
+            log( Stringf( "Neuron %u_%u lower-bound updated from  %f to %f",
+                          targetIndex,
+                          j,
+                          targetLayer.getLb( j ),
+                          lb ) );
+            targetLayer.setLb( j, lb );
+            _layerOwner->receiveTighterBound(
+                Tightening( targetLayer.neuronToVariable( j ), lb, Tightening::LB ) );
+        }
+        double ub = deepPolyElement->getUpperBound( j );
+        if ( targetLayer.getUb( j ) > ub )
+        {
+            log( Stringf( "Neuron %u_%u upper-bound updated from  %f to %f",
+                          targetIndex,
+                          j,
+                          targetLayer.getUb( j ),
+                          ub ) );
+            targetLayer.setUb( j, ub );
+            _layerOwner->receiveTighterBound(
+                Tightening( targetLayer.neuronToVariable( j ), ub, Tightening::UB ) );
+        }
+    }
+    log( Stringf( "Running deeppoly analysis for layer %u - done", targetIndex ) );
+}
+
 void DeepPolyAnalysis::allocateMemory()
 {
     freeMemoryIfNeeded();

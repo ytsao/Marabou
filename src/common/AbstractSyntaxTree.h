@@ -17,8 +17,8 @@
 #define __AbstractSyntaxTree_h__
 
 #include "Interval.h"
+#include "Map.h"
 
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -106,7 +106,7 @@ class ASTEvaluator
 {
 public:
     ASTEvaluator();
-    ASTEvaluator( const std::map<std::string, Interval> *variables, bool isLastLayer );
+    ASTEvaluator( const Map<std::string, Interval> *variables, bool isLastLayer );
     ~ASTEvaluator();
 
     // Parse and evaluate an expression
@@ -123,7 +123,7 @@ private:
     std::unique_ptr<ASTNode> parse( const char *expression );
 
     // Variables available during evaluation
-    const std::map<std::string, Interval> *_variables;
+    const Map<std::string, Interval> *_variables;
     bool _isLastLayer;
 
     // Current result

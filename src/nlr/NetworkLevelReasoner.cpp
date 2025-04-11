@@ -211,6 +211,13 @@ void NetworkLevelReasoner::deepPolyPropagation()
     _deepPolyAnalysis->run();
 }
 
+void NetworkLevelReasoner::deepPolyPropagationForOneLayer( unsigned targetIndex )
+{
+    if ( _deepPolyAnalysis == nullptr )
+        _deepPolyAnalysis = std::unique_ptr<DeepPolyAnalysis>( new DeepPolyAnalysis( this ) );
+    _deepPolyAnalysis->runForOneLayer( targetIndex );
+}
+
 void NetworkLevelReasoner::lpRelaxationPropagation()
 {
     LPFormulator lpFormulator( this );

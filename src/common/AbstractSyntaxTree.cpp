@@ -159,7 +159,7 @@ ASTEvaluator::ASTEvaluator()
 {
 }
 
-ASTEvaluator::ASTEvaluator( const std::map<std::string, Interval> *variables, bool isLastLayer )
+ASTEvaluator::ASTEvaluator( const Map<std::string, Interval> *variables, bool isLastLayer )
     : _variables( variables )
     , _isLastLayer( isLastLayer )
 {
@@ -176,13 +176,12 @@ Interval ASTEvaluator::getVariableValue( const std::string &name ) const
         throw std::runtime_error( "No variables provided to evaluator" );
     }
 
-    auto it = _variables->find( name );
-    if ( it == _variables->end() )
+    if ( !_variables->exists( name ) )
     {
         throw std::runtime_error( "Variable not found: " + name );
     }
 
-    return it->second;
+    return ( *_variables )[name];
 }
 
 Interval ASTEvaluator::evaluate( const char *expression )

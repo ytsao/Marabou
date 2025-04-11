@@ -32,6 +32,7 @@ public:
     ~DeepPolyAnalysis();
 
     void run();
+    void runForOneLayer( unsigned targetIndex ); // new added.
 
 private:
     LayerOwner *_layerOwner;

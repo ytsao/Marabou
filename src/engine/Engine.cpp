@@ -589,7 +589,7 @@ bool Engine::solveWithIntervalArithmetic( const IQuery &inputQuery )
 
         _networkLevelReasoner->obtainCurrentBounds();
 
-        // DeepPoly
+        // IntervalArithmetic
         _networkLevelReasoner->intervalArithmeticBoundPropagation();
 
         // Extract the bounds
@@ -676,7 +676,7 @@ bool Engine::solveWithSymbolic( const IQuery &inputQuery )
 
         _networkLevelReasoner->obtainCurrentBounds();
 
-        // DeepPoly
+        // Symbolic
         _networkLevelReasoner->symbolicBoundPropagation();
 
         // Extract the bounds
@@ -748,19 +748,294 @@ bool Engine::solveWithSymbolic( const IQuery &inputQuery )
     return true;
 }
 
-bool Engine::solveWithDeepPolyBFA( double timeoutInSeconds )
+bool Engine::solveWithDeepPolyBFA( const IQuery &inputQuery )
 {
-    return false;
+    ENGINE_LOG( "solve by DeepPoly with Backward analysis." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // DeepPoly
+        // TODO: customize the deepPolyPropagation function to be able to use backward analysis
+        // _networkLevelReasoner->deepPolyPropagation();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        for ( unsigned int i = 0; i < layerIndexToLayer.size(); ++i )
+        {
+            NLR::Layer::Type layerType = layerIndexToLayer[i]->getLayerType();
+            if ( layerType == NLR::Layer::Type::RELU )
+                continue;
+
+            _networkLevelReasoner->deepPolyPropagationForOneLayer( i );
+
+            // Extract the bounds
+            List<Tightening> bounds;
+            _networkLevelReasoner->getConstraintTightenings( bounds );
+
+            // Update the bounds;
+            if ( _preprocessedQuery )
+            {
+                for ( const auto &bound : bounds )
+                {
+                    if ( bound._type == Tightening::LB &&
+                         FloatUtils::gt( bound._value,
+                                         _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                    {
+                        _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                    }
+                    else if ( bound._type == Tightening::UB &&
+                              FloatUtils::lt(
+                                  bound._value,
+                                  _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                    {
+                        _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                    }
+                }
+            }
+            else
+            {
+                for ( const auto &bound : bounds )
+                {
+                    if ( bound._type == Tightening::LB &&
+                         FloatUtils::gt( bound._value,
+                                         _tableau->getLowerBound( bound._variable ) ) )
+                    {
+                        _tableau->setLowerBound( bound._variable, bound._value );
+                    }
+                    else if ( bound._type == Tightening::UB &&
+                              FloatUtils::lt( bound._value,
+                                              _tableau->getUpperBound( bound._variable ) ) )
+                    {
+                        _tableau->setUpperBound( bound._variable, bound._value );
+                    }
+                }
+            }
+
+            // Backward analysis
+            // TODO: Check if the pc_id is correct or not.
+            if ( BackwardAnalysis( 0, i ) )
+            {
+                throw InfeasibleQueryException();
+            }
+
+            struct timespec end = TimeUtils::sampleMicro();
+            _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                          TimeUtils::timePassed( start, end ) );
+        }
+
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
+
+    return true;
 }
 
-bool Engine::solveWithIntervalArithmeticBFA( double timeoutInSeconds )
+bool Engine::solveWithIntervalArithmeticBFA( const IQuery &inputQuery )
 {
-    return false;
+    ENGINE_LOG( "solve by IntervalArithmetic with Backward analysis." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // IntervalArithmetic
+        // TODO: customize the intervalArithmeticBoundPropagation function to be able to use
+        // backward analysis
+        _networkLevelReasoner->intervalArithmeticBoundPropagation();
+
+        // Extract the bounds
+        List<Tightening> bounds;
+        _networkLevelReasoner->getConstraintTightenings( bounds );
+
+        // Update the bounds;
+        if ( _preprocessedQuery )
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value,
+                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        else
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                {
+                    _tableau->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _tableau->getUpperBound( bound._variable ) ) )
+                {
+                    _tableau->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "IntervalArithmetic Propagation with Backward Analysis done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "IntervalArithmetic Propagation with Backward Analysis done\n" );
+
+    return true;
 }
 
-bool Engine::solveWithSymbolicBFA( double timeoutInSeconds )
+bool Engine::solveWithSymbolicBFA( const IQuery &inputQuery )
 {
-    return false;
+    ENGINE_LOG( "solve by Symbolic with Backward analysis." );
+    struct timespec start = TimeUtils::sampleMicro();
+
+    try
+    {
+        invokePreprocessor( inputQuery, true );
+        if ( _verbosity > 1 )
+            printInputBounds( inputQuery );
+
+        initializeNetworkLevelReasoning();
+
+        _networkLevelReasoner->obtainCurrentBounds();
+
+        // Symbolic
+        // TODO: customize the symbolicBoundPropagation function to be able to use backward analysis
+        _networkLevelReasoner->symbolicBoundPropagation();
+
+        // Extract the bounds
+        List<Tightening> bounds;
+        _networkLevelReasoner->getConstraintTightenings( bounds );
+
+        // Update the bounds;
+        if ( _preprocessedQuery )
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value,
+                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        else
+        {
+            for ( const auto &bound : bounds )
+            {
+                if ( bound._type == Tightening::LB &&
+                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                {
+                    _tableau->setLowerBound( bound._variable, bound._value );
+                }
+                else if ( bound._type == Tightening::UB &&
+                          FloatUtils::lt( bound._value,
+                                          _tableau->getUpperBound( bound._variable ) ) )
+                {
+                    _tableau->setUpperBound( bound._variable, bound._value );
+                }
+            }
+        }
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+        if ( !_tableau->allBoundsValid() )
+        {
+            // Some variable bounds are invalid, so the query is unsat
+            throw InfeasibleQueryException();
+        }
+    }
+    catch ( const InfeasibleQueryException & )
+    {
+        ENGINE_LOG( "Symbolic Bound Propagation with Backward Analysis done\n" );
+
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
+
+        _exitCode = Engine::UNSAT;
+        printf( "unsat\n" );
+
+        return false;
+    }
+
+    ENGINE_LOG( "Symbolic Bound Propagation with Backward Analysis done\n" );
+
+    return true;
+}
+
+bool Engine::BackwardAnalysis( const int pc_id, const int layer_id )
+{
+    BP::BackPropagation backPropagation;
+    backPropagation.build( *_preprocessedQuery, *_networkLevelReasoner );
+    return backPropagation.bound_checking( *_preprocessedQuery, pc_id, layer_id );
 }
 
 void Engine::mainLoopStatistics()

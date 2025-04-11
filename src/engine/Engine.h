@@ -20,6 +20,7 @@
 #include "AutoProjectedSteepestEdge.h"
 #include "AutoRowBoundTightener.h"
 #include "AutoTableau.h"
+#include "BackwardAnalysis.h"
 #include "BlandsRule.h"
 #include "BoundManager.h"
 #include "Checker.h"
@@ -100,10 +101,10 @@ public:
     bool solveWithDeepPoly( const IQuery &inputQuery );
     bool solveWithIntervalArithmetic( const IQuery &inputQuery );
     bool solveWithSymbolic( const IQuery &inputQuery );
-    bool solveWithDeepPolyBFA( double timeoutInSeconds = 0 );
-    bool solveWithIntervalArithmeticBFA( double timeoutInSeconds = 0 );
-    bool solveWithSymbolicBFA( double timeoutInSeconds = 0 );
-
+    bool solveWithDeepPolyBFA( const IQuery &inputQuery );
+    bool solveWithIntervalArithmeticBFA( const IQuery &inputQuery );
+    bool solveWithSymbolicBFA( const IQuery &inputQuery );
+    bool BackwardAnalysis( const int pc_id, const int layer_id );
 
     /*
       Minimize the cost function with respect to the current set of linear constraints.
