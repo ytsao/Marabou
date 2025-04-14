@@ -22,7 +22,10 @@
 #include "Layer.h"
 #include "LayerOwner.h"
 #include "NetworkLevelReasoner.h"
+#include "Preprocessor.h"
 #include "Query.h"
+
+#include <vector>
 
 namespace BP {
 class BackPropagation
@@ -31,8 +34,13 @@ public:
     BackPropagation();
     ~BackPropagation();
 
-    bool bound_checking( const Query &inputQuery, const int pc_id, const int layer_id ) const;
-    void build( const Query &inputQuery, const NLR::NetworkLevelReasoner &_networkLevelReasoner );
+    bool boundChecking( const Query &inputQuery,
+                        const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+                        const unsigned int pcId,
+                        const unsigned int layerId ) const;
+    void build( const Query &inputQuery,
+                const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+                const Preprocessor &preprocessor );
 
     // All the properties that I need to implement the backward analysis.
     // _post_conditions;    -> inputQuery.equations
@@ -51,24 +59,29 @@ public:
             coefficient = _coefficient;
             term = _term;
         }
-        ~Node();
+        ~Node(){};
 
         int id;
         double coefficient;
         std::string term;
     };
 
-    unsigned int _numberOfOrConditions = 1;
+    unsigned int _numberOfOrConditions = 0;
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
-    Map<int, List<List<std::string>>> _post_conditions;
-    Map<std::string, List<Node>> _vars;
+    // Map<int, List<List<std::string>>> _postConditions;
+    Map<int, std::vector<std::vector<std::string>>> _postConditions;
 
-    void _init_post_conditions( const Query &inputQuery,
-                                const NLR::NetworkLevelReasoner &_networkLevelReasoner );
-    void _build_relation( const Query &inputQuery,
+    // Map<std::string, List<Node>> _vars;
+    Map<std::string, std::vector<Node>> _vars;
+    Map<unsigned int, unsigned int> _mergedVar2OriginalVar;
+
+    void _initPostConditions( const Query &inputQuery,
+                              const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+                              const Preprocessor &preprocessor );
+    void _buildRelations( const Query &inputQuery,
                           const NLR::NetworkLevelReasoner &_networkLevelReasoner );
-    void _generate_new_post_conditions();
+    void _generateNewPostConditions();
     void dump() const;
 };
 } // namespace BP

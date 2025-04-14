@@ -104,7 +104,6 @@ public:
     bool solveWithDeepPolyBFA( const IQuery &inputQuery );
     bool solveWithIntervalArithmeticBFA( const IQuery &inputQuery );
     bool solveWithSymbolicBFA( const IQuery &inputQuery );
-    bool BackwardAnalysis( const int pc_id, const int layer_id );
 
     /*
       Minimize the cost function with respect to the current set of linear constraints.

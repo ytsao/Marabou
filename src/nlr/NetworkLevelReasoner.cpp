@@ -286,6 +286,11 @@ void NetworkLevelReasoner::intervalArithmeticBoundPropagation()
         _layerIndexToLayer[i]->computeIntervalArithmeticBounds();
 }
 
+void NetworkLevelReasoner::intervalArithmeticBoundPropagationForOneLayer( unsigned targetIndex )
+{
+    _layerIndexToLayer[targetIndex]->computeIntervalArithmeticBounds();
+}
+
 void NetworkLevelReasoner::freeMemoryIfNeeded()
 {
     for ( const auto &layer : _layerIndexToLayer )

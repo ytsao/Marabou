@@ -122,6 +122,7 @@ public:
     void obtainCurrentBounds( const Query &inputQuery );
     void obtainCurrentBounds();
     void intervalArithmeticBoundPropagation();
+    void intervalArithmeticBoundPropagationForOneLayer( unsigned targetIndex );
     void symbolicBoundPropagation();
     void deepPolyPropagation();
     void deepPolyPropagationForOneLayer( unsigned targetIndex ); // new added.

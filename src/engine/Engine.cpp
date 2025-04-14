@@ -494,7 +494,7 @@ bool Engine::solveWithDeepPoly( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -581,7 +581,7 @@ bool Engine::solveWithIntervalArithmetic( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -668,7 +668,7 @@ bool Engine::solveWithSymbolic( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -755,7 +755,7 @@ bool Engine::solveWithDeepPolyBFA( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -765,23 +765,37 @@ bool Engine::solveWithDeepPolyBFA( const IQuery &inputQuery )
 
         // DeepPoly
         // TODO: customize the deepPolyPropagation function to be able to use backward analysis
-        // _networkLevelReasoner->deepPolyPropagation();
         const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
             _networkLevelReasoner->getLayerIndexToLayer();
-        for ( unsigned int i = 0; i < layerIndexToLayer.size(); ++i )
+        BP::BackPropagation backPropagation;
+        backPropagation.build(
+            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        /*
+            pcId := the index of the layer that having the additional/original post-condition.
+        */
+        unsigned int numberOfLayers = getNumberOfLayers();
+        unsigned int pcId = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            NLR::Layer::Type layerType = layerIndexToLayer[i]->getLayerType();
-            if ( layerType == NLR::Layer::Type::RELU )
-                continue;
+            _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
 
-            _networkLevelReasoner->deepPolyPropagationForOneLayer( i );
+            NLR::Layer::Type layerType = layerIndexToLayer[layerId]->getLayerType();
+            if ( layerType == NLR::Layer::Type::RELU && layerId != numberOfLayers - 1 )
+                continue;
+            if ( ( layerType == NLR::Layer::Type::INPUT ||
+                   layerType == NLR::Layer::Type::WEIGHTED_SUM ) &&
+                 ( backPropagation._postConditions[0][pcId].size() == 0 ) )
+            {
+                pcId++;
+                continue;
+            }
 
             // Extract the bounds
             List<Tightening> bounds;
             _networkLevelReasoner->getConstraintTightenings( bounds );
 
             // Update the bounds;
-            if ( _preprocessedQuery )
+            if ( inputQuery.generateQuery() )
             {
                 for ( const auto &bound : bounds )
                 {
@@ -820,21 +834,59 @@ bool Engine::solveWithDeepPolyBFA( const IQuery &inputQuery )
             }
 
             // Backward analysis
-            // TODO: Check if the pc_id is correct or not.
-            if ( BackwardAnalysis( 0, i ) )
+            if ( backPropagation.boundChecking(
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, pcId, layerId ) )
             {
                 throw InfeasibleQueryException();
             }
-
-            struct timespec end = TimeUtils::sampleMicro();
-            _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
-                                          TimeUtils::timePassed( start, end ) );
+            else if ( ( pcId == backPropagation._postConditions[0].size() - 1 ) &&
+                      ( layerId != backPropagation._numberOfLinearLayers - 1 ) )
+            {
+                pcId--;
+            }
+            pcId++;
         }
+        struct timespec end = TimeUtils::sampleMicro();
+        _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
+                                      TimeUtils::timePassed( start, end ) );
 
         if ( !_tableau->allBoundsValid() )
         {
             // Some variable bounds are invalid, so the query is unsat
             throw InfeasibleQueryException();
+        }
+
+        // TODO:
+        if ( allVarsWithinBounds() )
+        {
+            // The linear portion of the problem has been solved.
+            // Check the status of the PL constraints
+            bool solutionFound = adjustAssignmentToSatisfyNonLinearConstraints();
+            if ( solutionFound )
+            {
+                if ( allNonlinearConstraintsHold() )
+                {
+                    // Allows checking proofs produced for UNSAT leaves of satisfiable query
+                    // search tree
+                    if ( _produceUNSATProofs )
+                    {
+                        ASSERT( _UNSATCertificateCurrentPointer );
+                        ( **_UNSATCertificateCurrentPointer ).setSATSolutionFlag();
+                    }
+                    _exitCode = Engine::SAT;
+                    return true;
+                }
+                else if ( !hasBranchingCandidate() )
+                {
+                    if ( _verbosity > 0 )
+                    {
+                        printf( "\nEngine::solve: at leaf node but solving inconclusive\n" );
+                        _statistics.print();
+                    }
+                    _exitCode = Engine::UNKNOWN;
+                    return false;
+                }
+            }
         }
     }
     catch ( const InfeasibleQueryException & )
@@ -863,7 +915,7 @@ bool Engine::solveWithIntervalArithmeticBFA( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -873,48 +925,84 @@ bool Engine::solveWithIntervalArithmeticBFA( const IQuery &inputQuery )
 
         // IntervalArithmetic
         // TODO: customize the intervalArithmeticBoundPropagation function to be able to use
-        // backward analysis
-        _networkLevelReasoner->intervalArithmeticBoundPropagation();
-
-        // Extract the bounds
-        List<Tightening> bounds;
-        _networkLevelReasoner->getConstraintTightenings( bounds );
-
-        // Update the bounds;
-        if ( _preprocessedQuery )
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        BP::BackPropagation backPropagation;
+        backPropagation.build(
+            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        unsigned int numberOfLayers = getNumberOfLayers();
+        unsigned int pcId = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            for ( const auto &bound : bounds )
+            // Interval propagate one layer
+            _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
+
+            NLR::Layer::Type layerType = layerIndexToLayer[layerId]->getLayerType();
+            if ( layerType == NLR::Layer::Type::RELU && layerId != numberOfLayers - 1 )
+                continue;
+            if ( ( layerType == NLR::Layer::Type::INPUT ||
+                   layerType == NLR::Layer::Type::WEIGHTED_SUM ) &&
+                 ( backPropagation._postConditions[0][pcId].size() == 0 ) )
             {
-                if ( bound._type == Tightening::LB &&
-                     FloatUtils::gt( bound._value,
-                                     _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                pcId++;
+                continue;
+            }
+
+            // Extract the bounds
+            List<Tightening> bounds;
+            _networkLevelReasoner->getConstraintTightenings( bounds );
+
+            // Update the bounds;
+            if ( inputQuery.generateQuery() )
+            {
+                for ( const auto &bound : bounds )
                 {
-                    _preprocessedQuery->setLowerBound( bound._variable, bound._value );
-                }
-                else if ( bound._type == Tightening::UB &&
-                          FloatUtils::lt( bound._value,
-                                          _preprocessedQuery->getUpperBound( bound._variable ) ) )
-                {
-                    _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                    if ( bound._type == Tightening::LB &&
+                         FloatUtils::gt( bound._value,
+                                         _preprocessedQuery->getLowerBound( bound._variable ) ) )
+                    {
+                        _preprocessedQuery->setLowerBound( bound._variable, bound._value );
+                    }
+                    else if ( bound._type == Tightening::UB &&
+                              FloatUtils::lt(
+                                  bound._value,
+                                  _preprocessedQuery->getUpperBound( bound._variable ) ) )
+                    {
+                        _preprocessedQuery->setUpperBound( bound._variable, bound._value );
+                    }
                 }
             }
-        }
-        else
-        {
-            for ( const auto &bound : bounds )
+            else
             {
-                if ( bound._type == Tightening::LB &&
-                     FloatUtils::gt( bound._value, _tableau->getLowerBound( bound._variable ) ) )
+                for ( const auto &bound : bounds )
                 {
-                    _tableau->setLowerBound( bound._variable, bound._value );
-                }
-                else if ( bound._type == Tightening::UB &&
-                          FloatUtils::lt( bound._value,
-                                          _tableau->getUpperBound( bound._variable ) ) )
-                {
-                    _tableau->setUpperBound( bound._variable, bound._value );
+                    if ( bound._type == Tightening::LB &&
+                         FloatUtils::gt( bound._value,
+                                         _tableau->getLowerBound( bound._variable ) ) )
+                    {
+                        _tableau->setLowerBound( bound._variable, bound._value );
+                    }
+                    else if ( bound._type == Tightening::UB &&
+                              FloatUtils::lt( bound._value,
+                                              _tableau->getUpperBound( bound._variable ) ) )
+                    {
+                        _tableau->setUpperBound( bound._variable, bound._value );
+                    }
                 }
             }
+
+            // Backward analysis
+            if ( backPropagation.boundChecking(
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, pcId, layerId ) )
+            {
+                throw InfeasibleQueryException();
+            }
+            else if ( ( pcId == backPropagation._postConditions[0].size() - 1 ) &&
+                      ( layerId != backPropagation._numberOfLinearLayers - 1 ) )
+            {
+                pcId--;
+            }
+            pcId++;
         }
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -923,6 +1011,39 @@ bool Engine::solveWithIntervalArithmeticBFA( const IQuery &inputQuery )
         {
             // Some variable bounds are invalid, so the query is unsat
             throw InfeasibleQueryException();
+        }
+
+        // TODO:
+        if ( allVarsWithinBounds() )
+        {
+            // The linear portion of the problem has been solved.
+            // Check the status of the PL constraints
+            bool solutionFound = adjustAssignmentToSatisfyNonLinearConstraints();
+            if ( solutionFound )
+            {
+                if ( allNonlinearConstraintsHold() )
+                {
+                    // Allows checking proofs produced for UNSAT leaves of satisfiable query
+                    // search tree
+                    if ( _produceUNSATProofs )
+                    {
+                        ASSERT( _UNSATCertificateCurrentPointer );
+                        ( **_UNSATCertificateCurrentPointer ).setSATSolutionFlag();
+                    }
+                    _exitCode = Engine::SAT;
+                    return true;
+                }
+                else if ( !hasBranchingCandidate() )
+                {
+                    if ( _verbosity > 0 )
+                    {
+                        printf( "\nEngine::solve: at leaf node but solving inconclusive\n" );
+                        _statistics.print();
+                    }
+                    _exitCode = Engine::UNKNOWN;
+                    return false;
+                }
+            }
         }
     }
     catch ( const InfeasibleQueryException & )
@@ -951,7 +1072,7 @@ bool Engine::solveWithSymbolicBFA( const IQuery &inputQuery )
 
     try
     {
-        invokePreprocessor( inputQuery, true );
+        // invokePreprocessor( inputQuery, true );
         if ( _verbosity > 1 )
             printInputBounds( inputQuery );
 
@@ -1029,13 +1150,6 @@ bool Engine::solveWithSymbolicBFA( const IQuery &inputQuery )
     ENGINE_LOG( "Symbolic Bound Propagation with Backward Analysis done\n" );
 
     return true;
-}
-
-bool Engine::BackwardAnalysis( const int pc_id, const int layer_id )
-{
-    BP::BackPropagation backPropagation;
-    backPropagation.build( *_preprocessedQuery, *_networkLevelReasoner );
-    return backPropagation.bound_checking( *_preprocessedQuery, pc_id, layer_id );
 }
 
 void Engine::mainLoopStatistics()

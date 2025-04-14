@@ -494,17 +494,18 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
         Engine engine;
         if ( !engine.processInputQuery( inputQuery ) )
         {
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
         if ( !engine.solveWithDeepPoly( inputQuery ) )
         {
-            std::string exitCode = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
         // Extract bounds
+        resultString = exitCodeToString( engine.getExitCode() );
         engine.extractBounds( inputQuery );
         for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
@@ -513,45 +514,7 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
                 std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
 
-        // unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        // engine.solveWithDeepPoly( inputQuery );
-
-        // resultString = exitCodeToString( engine.getExitCode() );
-        // if ( engine.getExitCode() == Engine::SAT )
-        // {
-        //     engine.extractSolution( inputQuery );
-        //     for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        //     {
-        //         ret[i] = inputQuery.getSolutionValue( i );
-        //         py::print( "Variable ", i, " = ", ret[i] );
-        //     }
-        // }
-
-        // // for test, print the solution for each neuron
-        // // test result: I can access the solution for each neuron.
-        // //
-        // // How to get the bound for each neuron?
-        // // -> by using the getLowerBound and getUpperBound functions in InputQuery.
-        // // engine.extractSolution( inputQuery );
-        // py::print( "the number of variables: ", inputQuery.getNumberOfVariables() );
-        // engine.extractBounds( inputQuery );
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // // Solutions
-        //     // ret[i] = inputQuery.getSolutionValue( i );
-        //     // py::print( "Variable ", i, " = ", ret[i] );
-
-        //     // Bounds
-        //     // Q1. Why the bounds of neurons in the intermediate & output layers are not
-        //     tightened?
-        //     // ->
-        //     py::print( "==========================" );
-        //     py::print( "Lower bound for variable ", i, " = ", inputQuery.getLowerBound( i ) );
-        //     py::print( "Upper bound for variable ", i, " = ", inputQuery.getUpperBound( i ) );
-        //     py::print( "==========================" );
-        // }
-
-        // retStats = *( engine.getStatistics() );
+        retStats = *( engine.getStatistics() );
     }
     catch ( const MarabouError &e )
     {
@@ -586,25 +549,28 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
         Engine engine;
         if ( !engine.processInputQuery( inputQuery ) )
         {
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
         if ( !engine.solveWithIntervalArithmetic( inputQuery ) )
         {
-            std::string exitCode = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
 
         // Extract bounds
         engine.extractBounds( inputQuery );
+        resultString = exitCodeToString( engine.getExitCode() );
         for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
             // set lower bound and upper bound in tuple
             ret[i] =
                 std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
+
+        retStats = *( engine.getStatistics() );
     }
     catch ( const MarabouError &e )
     {
@@ -641,14 +607,15 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
         Engine engine;
         if ( !engine.processInputQuery( inputQuery ) )
         {
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
         if ( !engine.solveWithSymbolic( inputQuery ) )
         {
-            std::string exitCode = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( exitCode, ret, *( engine.getStatistics() ) );
+            // unsat
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
         // Extract bounds
@@ -659,6 +626,8 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
             ret[i] =
                 std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
+
+        retStats = *( engine.getStatistics() );
     }
     catch ( const MarabouError &e )
     {
@@ -673,14 +642,14 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
     return std::make_tuple( resultString, ret, retStats );
 }
 
-std::tuple<std::string, std::map<int, double>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
 solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
     // TODO: add BFA procedure into it.
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
-    std::map<int, double> ret;
+    std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
     int output = -1;
     if ( redirect.length() > 0 )
@@ -690,20 +659,29 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
         py::print( "Solving with DeepPoly BFA\n" );
         options.setOptions();
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+        // It might be better that we don't use the result of processInputQuery,
+        // but still using our BP to determine the result of verification.
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
+        engine.processInputQuery( inputQuery );
 
-        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        engine.solveWithDeepPolyBFA( timeoutInSeconds );
-
-        resultString = exitCodeToString( engine.getExitCode() );
-
-        if ( engine.getExitCode() == Engine::SAT )
+        if ( !engine.solveWithDeepPolyBFA( inputQuery ) )
         {
-            engine.extractSolution( inputQuery );
-            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-                ret[i] = inputQuery.getSolutionValue( i );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
+
+        // Extract bounds
+        resultString = exitCodeToString( engine.getExitCode() );
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
 
         retStats = *( engine.getStatistics() );
@@ -740,15 +718,17 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
         options.setOptions();
         Engine engine;
         if ( !engine.processInputQuery( inputQuery ) )
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
+        {
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
 
         unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        engine.solveWithIntervalArithmeticBFA( timeoutInSeconds );
+        engine.solveWithIntervalArithmeticBFA( inputQuery );
 
         resultString = exitCodeToString( engine.getExitCode() );
 
-        if ( engine.getExitCode() == Engine::SAT )
+        if ( resultString == "sat" )
         {
             engine.extractSolution( inputQuery );
             for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
@@ -791,7 +771,7 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
                 exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
 
         unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        engine.solveWithSymbolicBFA( timeoutInSeconds );
+        engine.solveWithSymbolicBFA( inputQuery );
 
         resultString = exitCodeToString( engine.getExitCode() );
 
