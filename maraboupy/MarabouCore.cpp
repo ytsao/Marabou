@@ -311,7 +311,9 @@ struct MarabouOptions
         , _milpTighteningString(
               Options::get()->getString( Options::MILP_SOLVER_BOUND_TIGHTENING_TYPE ).ascii() )
         , _lpSolverString( Options::get()->getString( Options::LP_SOLVER ).ascii() )
-        , _produceProofs( Options::get()->getBool( Options::PRODUCE_PROOFS ) ){};
+        , _produceProofs( Options::get()->getBool( Options::PRODUCE_PROOFS ) )
+        , _numLayersWithAdditionalPostCons(
+              Options::get()->getInt( Options::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS ) ){};
 
     void setOptions()
     {
@@ -333,6 +335,8 @@ struct MarabouOptions
         Options::get()->setInt( Options::VERBOSITY, _verbosity );
         Options::get()->setInt( Options::TIMEOUT, _timeoutInSeconds );
         Options::get()->setInt( Options::CONSTRAINT_VIOLATION_THRESHOLD, _splitThreshold );
+        Options::get()->setInt( Options::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS,
+                                _numLayersWithAdditionalPostCons );
 
         // float options
         Options::get()->setFloat( Options::TIMEOUT_FACTOR, _timeoutFactor );
@@ -365,6 +369,7 @@ struct MarabouOptions
     unsigned _timeoutInSeconds;
     unsigned _splitThreshold;
     unsigned _numSimulations;
+    unsigned _numLayersWithAdditionalPostCons;
     float _timeoutFactor;
     float _preprocessorBoundTolerance;
     float _milpSolverTimeout;
@@ -453,6 +458,14 @@ solve( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "
 
             resultString = exitCodeToString( engine.getExitCode() );
 
+            engine.extractBounds( inputQuery );
+            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+            {
+                // show lower bound and upper bound in tuple
+                py::print( "Lower bound: ", inputQuery.getLowerBound( i ) );
+                py::print( "Upper bound: ", inputQuery.getUpperBound( i ) );
+            }
+
             if ( engine.getExitCode() == Engine::SAT )
             {
                 engine.extractSolution( inputQuery );
@@ -505,13 +518,15 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
         }
 
         // Extract bounds
+        auto preprocessorQuery = engine.getQuery();
         resultString = exitCodeToString( engine.getExitCode() );
         engine.extractBounds( inputQuery );
         for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            // set lower bound and upper bound in tuple
             ret[i] =
                 std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            // ret[i] = std::make_tuple( preprocessorQuery->getLowerBound( i ),
+            //                           preprocessorQuery->getUpperBound( i ) );
         }
 
         retStats = *( engine.getStatistics() );
@@ -661,12 +676,12 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
         Engine engine;
         // It might be better that we don't use the result of processInputQuery,
         // but still using our BP to determine the result of verification.
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
-        engine.processInputQuery( inputQuery );
+        if ( !engine.processInputQuery( inputQuery ) )
+        {
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
+        // engine.processInputQuery( inputQuery );
 
         if ( !engine.solveWithDeepPolyBFA( inputQuery ) )
         {
@@ -698,7 +713,7 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
         restoreOutputStream( output );
     return std::make_tuple( resultString, ret, retStats );
 }
-std::tuple<std::string, std::map<int, double>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
 solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
                                 MarabouOptions &options,
                                 std::string redirect = "" )
@@ -707,7 +722,7 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
-    std::map<int, double> ret;
+    std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
     int output = -1;
     if ( redirect.length() > 0 )
@@ -722,17 +737,22 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
             resultString = exitCodeToString( engine.getExitCode() );
             return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
+        // engine.processInputQuery( inputQuery );
 
-        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        engine.solveWithIntervalArithmeticBFA( inputQuery );
-
-        resultString = exitCodeToString( engine.getExitCode() );
-
-        if ( resultString == "sat" )
+        if ( !engine.solveWithIntervalArithmeticBFA( inputQuery ) )
         {
-            engine.extractSolution( inputQuery );
-            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-                ret[i] = inputQuery.getSolutionValue( i );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
+
+        // Extract bounds
+        resultString = exitCodeToString( engine.getExitCode() );
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
 
         retStats = *( engine.getStatistics() );
@@ -749,14 +769,14 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
         restoreOutputStream( output );
     return std::make_tuple( resultString, ret, retStats );
 }
-std::tuple<std::string, std::map<int, double>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
 solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
     // TODO: add BFA procedure into it.
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
-    std::map<int, double> ret;
+    std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
     int output = -1;
     if ( redirect.length() > 0 )
@@ -765,21 +785,29 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
     {
         py::print( "Solving with Symbolic BFA\n" );
         options.setOptions();
+        Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
         Engine engine;
         if ( !engine.processInputQuery( inputQuery ) )
-            return std::make_tuple(
-                exitCodeToString( engine.getExitCode() ), ret, *( engine.getStatistics() ) );
-
-        unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-        engine.solveWithSymbolicBFA( inputQuery );
-
-        resultString = exitCodeToString( engine.getExitCode() );
-
-        if ( engine.getExitCode() == Engine::SAT )
         {
-            engine.extractSolution( inputQuery );
-            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-                ret[i] = inputQuery.getSolutionValue( i );
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
+        // engine.processInputQuery( inputQuery );
+
+        if ( !engine.solveWithSymbolicBFA( inputQuery ) )
+        {
+            resultString = exitCodeToString( engine.getExitCode() );
+            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        }
+
+        // Extract bounds
+        resultString = exitCodeToString( engine.getExitCode() );
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        {
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
 
         retStats = *( engine.getStatistics() );
@@ -898,7 +926,9 @@ PYBIND11_MODULE( MarabouCore, m )
         .def_readwrite( "_numSimulations", &MarabouOptions::_numSimulations )
         .def_readwrite( "_performLpTighteningAfterSplit",
                         &MarabouOptions::_performLpTighteningAfterSplit )
-        .def_readwrite( "_produceProofs", &MarabouOptions::_produceProofs );
+        .def_readwrite( "_produceProofs", &MarabouOptions::_produceProofs )
+        .def_readwrite( "_numLayersWithAdditionalPostCons",
+                        &MarabouOptions::_numLayersWithAdditionalPostCons );
     m.def( "maraboupyMain", &maraboupyMain, "Run the Marabou command-line interface" );
     m.def( "loadProperty", &loadProperty, "Load a property file into a input query" );
     m.def( "createInputQuery",

@@ -115,6 +115,9 @@ public:
 
         // Maximal number of constraints to refine in incremental linearization
         NUM_CONSTRAINTS_TO_REFINE_INC_LIN,
+
+        // Maximal number of layers can be added with additional post-conditions
+        NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS,
     };
 
     enum FloatOptions {

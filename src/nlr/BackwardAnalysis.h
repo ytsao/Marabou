@@ -22,6 +22,7 @@
 #include "Layer.h"
 #include "LayerOwner.h"
 #include "NetworkLevelReasoner.h"
+#include "Options.h"
 #include "Preprocessor.h"
 #include "Query.h"
 

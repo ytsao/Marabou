@@ -71,6 +71,7 @@ void Options::initializeDefaultValues()
     _intOptions[SEED] = 1;
     _intOptions[NUM_BLAS_THREADS] = 1;
     _intOptions[NUM_CONSTRAINTS_TO_REFINE_INC_LIN] = 30;
+    _intOptions[NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS] = 1;
 
     /*
       Float options

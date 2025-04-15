@@ -52,6 +52,8 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
         std::string name = "x_" + std::to_string( layerId + 1 ) + "_" + std::to_string( neuronId );
         variables[name] = interval;
         printf( "name = %s\n", name.c_str() );
+        printf( "lb = %f\n", lb );
+        printf( "ub = %f\n", ub );
     }
 
     // 2.
@@ -59,29 +61,29 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
     // there is an error saying that "RuntimeError: Varaible not found."
     // but I'm not sure why yet,
     // maybe I should printf all the variables' name to see if it is correct.
-    printf( "second step of boundChecking\n" );
-    printf( "postConditions.size() = %d\n", _postConditions.size() );
+    // printf( "second step of boundChecking\n" );
+    // printf( "postConditions.size() = %d\n", _postConditions.size() );
     for ( auto &orCondition : _postConditions )
     {
         bool andResult = false;
-        printf( "orCondition.first = %d\n", orCondition.first );
-        printf( "orCondition.second.size() = %d\n", orCondition.second.size() );
+        // printf( "orCondition.first = %d\n", orCondition.first );
+        // printf( "orCondition.second.size() = %d\n", orCondition.second.size() );
         std::vector<std::string> andConstraints = orCondition.second[pcId];
-        bool isLastLayer = ( andConstraints.size() > 0 ) && ( pcId == andConstraints.size() - 1 );
+        bool isLastLayer = pcId == orCondition.second.size() - 1;
         ASTEvaluator ast = ASTEvaluator( &variables, isLastLayer );
         for ( auto &andConstraint : andConstraints )
         {
-            printf( "andConstraints.size() = %ld\n", andConstraints.size() );
-            printf( "pcId = %d\n", pcId );
-            printf( "isLastLayer = %d\n", isLastLayer );
-            printf( "size of andConstiraints = %ld\n", andConstraints.size() );
-            printf( " andConstraint = %s\n", andConstraint.c_str() );
+            // printf( "andConstraints.size() = %ld\n", andConstraints.size() );
+            // printf( "pcId = %d\n", pcId );
+            // printf( "isLastLayer = %d\n", isLastLayer );
+            // printf( "size of andConstiraints = %ld\n", andConstraints.size() );
+            // printf( " andConstraint = %s\n", andConstraint.c_str() );
             // Because the Vnnparser builds the constraints as <= type,
             // we need to negate the constraint to check if it is satisfied.
             // For example, if the constraint is x1 + x2 <= 0, we need to check
             // if -(x1 + x2) >= 0.
-            Interval result = -ast.evaluate( andConstraint.c_str() ); // ! the problem seems in
-                                                                      // here.
+            Interval result = ast.evaluate( andConstraint.c_str() ); // ! the problem seems in
+                                                                     // here.
             printf( "result = %f\n", result.getLowerBound() );
             if ( result.getLowerBound() < 0 )
             {
@@ -100,10 +102,15 @@ void BackPropagation::build( const Query &inputQuery,
                              const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                              const Preprocessor &preprocessor )
 {
+    printf( "doing initialization for BackPropagation\n" );
     _initPostConditions( inputQuery, _networkLevelReasoner, preprocessor );
+    printf( "doing building for BackPropagation\n" );
     _buildRelations( inputQuery, _networkLevelReasoner );
+    printf( "finished building for BackPropagation\n" );
     // dump();
+    printf( "doing generation for BackPropagation\n" );
     _generateNewPostConditions();
+    printf( "finished generation for BackPropagation\n" );
 }
 
 void BackPropagation::dump() const
@@ -157,8 +164,8 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
     List<Equation> equations = inputQuery.getEquations();
     List<PiecewiseLinearConstraint *> disjunctiveConstraints =
         inputQuery.getPiecewiseLinearConstraints();
-    printf( "disjunctiveConstraints.size() = %d\n", disjunctiveConstraints.size() );
-    printf( "equations.size() = %d\n", equations.size() );
+    // printf( "disjunctiveConstraints.size() = %d\n", disjunctiveConstraints.size() );
+    // printf( "equations.size() = %d\n", equations.size() );
 
     for ( auto &disCon : disjunctiveConstraints )
     {
@@ -210,7 +217,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 }
 
                 // remove the last character "+" from string.
-                printf( "introduce a new post-condtion \n" );
+                // printf( "introduce a new post-condtion \n" );
                 postCondition = postCondition.substr( 0, postCondition.size() - 1 );
                 outputLayerPostCondition.push_back( postCondition );
             }
@@ -221,7 +228,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         _numberOfOrConditions++;
     }
 
-    printf( "number of disjunctive constraints = %d\n", _numberOfOrConditions );
+    // printf( "number of disjunctive constraints = %d\n", _numberOfOrConditions );
     if ( _numberOfOrConditions == 0 )
     {
         std::vector<std::string> outputLayerPostCondition;
@@ -245,7 +252,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 double coefficient = eq.getCoefficient( pv );
                 std::string term = "x_" + std::to_string( numberOfLayers ) + "_" +
                                    std::to_string( inputQuery._variableToOutputIndex[pv] ) + " + ";
-                printf( "term = %s\n", term.c_str() );
+                // printf( "term = %s\n", term.c_str() );
                 postCondition += std::to_string( coefficient ) + " * " + term;
 
                 // rhs
@@ -259,7 +266,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         }
         //
         _postConditions[_numberOfOrConditions].push_back( outputLayerPostCondition );
-        printf( "Add a new post-condition\n" );
+        // printf( "Add a new post-condition\n" );
     }
 
     return;
@@ -375,11 +382,15 @@ void BackPropagation::_generateNewPostConditions()
     */
     for ( unsigned int i = 0; i < _numberOfOrConditions + 1; ++i )
     {
-        printf( "GlobalConfiguration::MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS = %d\n",
-                GlobalConfiguration::MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
-        printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
-        while ( _postConditions[i].size() <
-                GlobalConfiguration::MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS )
+        // printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
+
+        // TODO; here is an infinite loop.
+        int numLayersWithAddtionalPostConditions = Options::get()->getInt(
+            Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
+
+        printf( "NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS = %d\n",
+                numLayersWithAddtionalPostConditions );
+        while ( _postConditions[i].size() < numLayersWithAddtionalPostConditions )
         {
             // Extract the last post-conditions,
             // Declare a new post-condition for the previous layer.
@@ -388,10 +399,10 @@ void BackPropagation::_generateNewPostConditions()
             std::vector<std::string> theLastPostConditions = _postConditions[i][0];
             std::vector<std::string> newPostConditions;
 
-            printf( "theLastPostConditions.size() = %d\n", theLastPostConditions.size() );
+            // printf( "theLastPostConditions.size() = %d\n", theLastPostConditions.size() );
             for ( auto &postCondition : theLastPostConditions )
             {
-                printf( "postCondition = %s\n", postCondition.c_str() );
+                // printf( "postCondition = %s\n", postCondition.c_str() );
                 // Split the postCondition string by whitespace
                 std::istringstream iss( postCondition );
                 std::vector<std::string> tokens;
@@ -426,7 +437,7 @@ void BackPropagation::_generateNewPostConditions()
                             newVariables = newVariables.substr( 0, newVariables.size() - 2 );
                         newVariables += " )";
                         tokens[i] = newVariables;
-                        printf( "newVariables = %s\n", newVariables.c_str() );
+                        // printf( "newVariables = %s\n", newVariables.c_str() );
                     }
                 }
 
@@ -444,25 +455,24 @@ void BackPropagation::_generateNewPostConditions()
 
                 // Add the new post-condition to the list of post-conditions.
                 newPostConditions.push_back( newPostCondition );
-                printf( "newPostCondition = %s\n", newPostCondition.c_str() );
+                // printf( "newPostCondition = %s\n", newPostCondition.c_str() );
             }
 
             // Add the new post-condition to the list of post-conditions.
             _postConditions[i].insert( _postConditions[i].begin(), newPostConditions );
         }
 
-        printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
-        printf( "==========================\n" );
-        if ( GlobalConfiguration::MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS <
-             _numberOfLinearLayers + 1 )
+        // printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
+        // printf( "==========================\n" );
+        if ( numLayersWithAddtionalPostConditions < _numberOfLinearLayers + 1 )
         {
-            printf( "add empty post-conditions\n" );
-            printf( "number of linear layers = %d\n", _numberOfLinearLayers );
-            for ( unsigned int _ = GlobalConfiguration::MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS;
+            // printf( "add empty post-conditions\n" );
+            // printf( "number of linear layers = %d\n", _numberOfLinearLayers );
+            for ( unsigned int _ = numLayersWithAddtionalPostConditions;
                   _ < _numberOfLinearLayers + 1;
                   ++_ )
                 _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
-            printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
+            // printf( "_postConditions[%d].size() = %d\n", i, _postConditions[i].size() );
         }
     }
 

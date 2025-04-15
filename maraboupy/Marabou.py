@@ -1,9 +1,9 @@
-'''
+"""
 Top contributors (to current version):
     - Christopher Lazarus
     - Kyle Julian
     - Andrew Wu
-    
+
 This file is part of the Marabou project.
 Copyright (c) 2017-2024 by the authors listed in the file AUTHORS
 in the top-level source directory) and their institutional affiliations.
@@ -11,7 +11,7 @@ All rights reserved. See the file COPYING in the top-level source
 directory for licensing information.
 
 Marabou defines key functions that make up the main user interface to Maraboupy
-'''
+"""
 
 import warnings
 from maraboupy.MarabouCore import *
@@ -20,11 +20,16 @@ from maraboupy.MarabouCore import *
 try:
     from maraboupy.MarabouNetworkNNet import *
 except ImportError:
-    warnings.warn("NNet parser is unavailable because the numpy package is not installed")
+    warnings.warn(
+        "NNet parser is unavailable because the numpy package is not installed"
+    )
 try:
     from maraboupy.MarabouNetworkONNX import *
 except ImportError:
-    warnings.warn("ONNX parser is unavailable because onnx or onnxruntime packages are not installed")
+    warnings.warn(
+        "ONNX parser is unavailable because onnx or onnxruntime packages are not installed"
+    )
+
 
 def read_nnet(filename, normalize=False):
     """Constructs a MarabouNetworkNnet object from a .nnet file
@@ -39,6 +44,7 @@ def read_nnet(filename, normalize=False):
     """
     return MarabouNetworkNNet(filename, normalize=normalize)
 
+
 def read_onnx(filename, inputNames=None, outputNames=None):
     """Constructs a MarabouNetworkONNX object from an ONNX file
 
@@ -52,6 +58,7 @@ def read_onnx(filename, inputNames=None, outputNames=None):
     """
     return MarabouNetworkONNX(filename, inputNames, outputNames)
 
+
 def load_query(filename):
     """Load the serialized inputQuery from the given filename
 
@@ -64,6 +71,7 @@ def load_query(filename):
     query = MarabouCore.InputQuery()
     MarabouCore.loadQuery(filename, query)
     return query
+
 
 def solve_query(ipq, filename="", verbose=True, options=None, propertyFilename=""):
     """Function to solve query represented by this network
@@ -89,8 +97,8 @@ def solve_query(ipq, filename="", verbose=True, options=None, propertyFilename="
     exitCode, vals, stats = MarabouCore.solve(ipq, options, filename)
     if verbose:
         if stats.hasTimedOut():
-            print ("TO")
-        elif len(vals)==0:
+            print("TO")
+        elif len(vals) == 0:
             print("unsat")
         else:
             print("sat")
@@ -101,14 +109,33 @@ def solve_query(ipq, filename="", verbose=True, options=None, propertyFilename="
 
     return [exitCode, vals, stats]
 
-def createOptions(numWorkers=1, initialTimeout=5, initialSplits=0, onlineSplits=2,
-                  timeoutInSeconds=0, timeoutFactor=1.5, verbosity=2, snc=False,
-                  splittingStrategy="auto", sncSplittingStrategy="auto",
-                  restoreTreeStates=False, splitThreshold=20, solveWithMILP=False,
-                  preprocessorBoundTolerance=0.0000000001, dumpBounds=False,
-                  tighteningStrategy="deeppoly", milpTightening="none", milpSolverTimeout=0,
-                  numSimulations=10, numBlasThreads=1, performLpTighteningAfterSplit=False,
-                  lpSolver="", produceProofs=False):
+
+def createOptions(
+    numWorkers=1,
+    initialTimeout=5,
+    initialSplits=0,
+    onlineSplits=2,
+    timeoutInSeconds=0,
+    timeoutFactor=1.5,
+    verbosity=2,
+    snc=False,
+    splittingStrategy="auto",
+    sncSplittingStrategy="auto",
+    restoreTreeStates=False,
+    splitThreshold=20,
+    solveWithMILP=False,
+    preprocessorBoundTolerance=0.0000000001,
+    dumpBounds=False,
+    tighteningStrategy="deeppoly",
+    milpTightening="none",
+    milpSolverTimeout=0,
+    numSimulations=10,
+    numBlasThreads=1,
+    performLpTighteningAfterSplit=False,
+    lpSolver="",
+    produceProofs=False,
+    numLayersWithAdditionalPostCons=1,
+):
     """Create an options object for how Marabou should solve the query
 
     Args:
@@ -162,4 +189,5 @@ def createOptions(numWorkers=1, initialTimeout=5, initialSplits=0, onlineSplits=
     options._performLpTighteningAfterSplit = performLpTighteningAfterSplit
     options._lpSolver = lpSolver
     options._produceProofs = produceProofs
+    options._numLayersWithAdditionalPostCons = numLayersWithAdditionalPostCons
     return options

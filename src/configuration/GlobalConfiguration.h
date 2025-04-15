@@ -263,10 +263,6 @@ public:
      */
     static const unsigned MAX_ROUNDS_OF_BACKWARD_ANALYSIS;
 
-    /* How many layers can obtain additional post-conditions from backwar analysis.
-     */
-    static const unsigned MAX_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS;
-
 #ifdef ENABLE_GUROBI
     /*
       The number of threads Gurobi spawns
