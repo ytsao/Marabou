@@ -15,13 +15,6 @@
 
 #include "AbstractSyntaxTree.h"
 
-#include <cassert>
-#include <cctype>
-#include <cstring>
-#include <iostream>
-#include <queue>
-#include <sstream>
-#include <stack>
 
 // LiteralNode
 LiteralNode::LiteralNode( double value )
@@ -71,6 +64,7 @@ Interval BinaryOperationNode::evaluate( const ASTEvaluator *evaluator ) const
 {
     Interval leftInterval = _left->evaluate( evaluator );
     Interval rightInterval = _right->evaluate( evaluator );
+    Interval product;
 
     switch ( _op )
     {
@@ -79,6 +73,13 @@ Interval BinaryOperationNode::evaluate( const ASTEvaluator *evaluator ) const
     case SUBTRACT:
         return leftInterval - rightInterval;
     case MULTIPLY:
+        // TODO:
+        //  it seems not correct,
+        /* product = leftInterval * rightInterval; */
+        /* if ( evaluator->getisLastLayer() ) */
+        /*     return product; */
+        /* return Interval( std::max( product.getLowerBound(), 0.0 ), */
+        /*                  std::max( product.getUpperBound(), 0.0 ) ); */
         return leftInterval * rightInterval;
     default:
         throw std::runtime_error( "Unknown operation type" );
@@ -126,6 +127,7 @@ Interval UnaryOperationNode::evaluate( const ASTEvaluator *evaluator ) const
         return Interval( std::abs( operandInterval.getLowerBound() ),
                          std::abs( operandInterval.getUpperBound() ) );
     case RELU:
+        printf( "Here is a relu function.\n" );
         return Interval( std::max( 0.0, operandInterval.getLowerBound() ),
                          std::max( 0.0, operandInterval.getUpperBound() ) );
     default:
@@ -161,13 +163,11 @@ void UnaryOperationNode::print( unsigned indent ) const
 // ASTEvaluator
 ASTEvaluator::ASTEvaluator()
     : _variables( nullptr )
-    , _isLastLayer( false )
 {
 }
 
-ASTEvaluator::ASTEvaluator( const Map<std::string, Interval> *variables, bool isLastLayer )
+ASTEvaluator::ASTEvaluator( const Map<std::string, Interval> *variables )
     : _variables( variables )
-    , _isLastLayer( isLastLayer )
 {
 }
 

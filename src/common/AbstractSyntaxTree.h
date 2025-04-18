@@ -19,7 +19,14 @@
 #include "Interval.h"
 #include "Map.h"
 
+#include <cassert>
+#include <cctype>
+#include <cstring>
+#include <iostream>
 #include <memory>
+#include <queue>
+#include <sstream>
+#include <stack>
 #include <string>
 #include <vector>
 
@@ -106,7 +113,7 @@ class ASTEvaluator
 {
 public:
     ASTEvaluator();
-    ASTEvaluator( const Map<std::string, Interval> *variables, bool isLastLayer );
+    ASTEvaluator( const Map<std::string, Interval> *variables );
     ~ASTEvaluator();
 
     // Parse and evaluate an expression
@@ -124,7 +131,6 @@ private:
 
     // Variables available during evaluation
     const Map<std::string, Interval> *_variables;
-    bool _isLastLayer;
 
     // Current result
     Interval _result;

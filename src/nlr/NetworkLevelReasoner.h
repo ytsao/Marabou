@@ -124,6 +124,7 @@ public:
     void intervalArithmeticBoundPropagation();
     void intervalArithmeticBoundPropagationForOneLayer( unsigned targetIndex );
     void symbolicBoundPropagation();
+    void symbolicBoundPropagationForOneLayer( unsigned targetIndex );
     void deepPolyPropagation();
     void deepPolyPropagationForOneLayer( unsigned targetIndex ); // new added.
     void lpRelaxationPropagation();

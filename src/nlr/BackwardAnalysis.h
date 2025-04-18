@@ -39,6 +39,8 @@ public:
                         const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                         const unsigned int pcId,
                         const unsigned int layerId ) const;
+    void boundRefinement(); // TODO: maybe we need to use this to improve the bounds from DeepPoly &
+                            // Interval
     void build( const Query &inputQuery,
                 const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                 const Preprocessor &preprocessor );

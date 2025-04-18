@@ -98,12 +98,12 @@ public:
       - Interval Arithmetic-bfa
       - Symbolic-bfa
     */
-    bool solveWithDeepPoly( const IQuery &inputQuery );
-    bool solveWithIntervalArithmetic( const IQuery &inputQuery );
-    bool solveWithSymbolic( const IQuery &inputQuery );
-    bool solveWithDeepPolyBFA( const IQuery &inputQuery );
-    bool solveWithIntervalArithmeticBFA( const IQuery &inputQuery );
-    bool solveWithSymbolicBFA( const IQuery &inputQuery );
+    bool solveWithDeepPoly( IQuery &inputQuery );
+    bool solveWithIntervalArithmetic( IQuery &inputQuery );
+    bool solveWithSymbolic( IQuery &inputQuery );
+    bool solveWithDeepPolyBFA( IQuery &inputQuery );
+    bool solveWithIntervalArithmeticBFA( IQuery &inputQuery );
+    bool solveWithSymbolicBFA( IQuery &inputQuery );
 
     /*
       Minimize the cost function with respect to the current set of linear constraints.
@@ -329,6 +329,11 @@ public:
       Get the number of layers in the network
     */
     unsigned getNumberOfLayers() const;
+
+    /*
+      Get networkLevelReasoner
+    */
+    const NLR::NetworkLevelReasoner *getNetworkLevelReasoner() const;
 
 private:
     enum BasisRestorationRequired {

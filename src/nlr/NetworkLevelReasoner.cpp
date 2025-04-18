@@ -204,6 +204,11 @@ void NetworkLevelReasoner::symbolicBoundPropagation()
         _layerIndexToLayer[i]->computeSymbolicBounds();
 }
 
+void NetworkLevelReasoner::symbolicBoundPropagationForOneLayer( unsigned targetIndex )
+{
+    _layerIndexToLayer[targetIndex]->computeSymbolicBounds();
+}
+
 void NetworkLevelReasoner::deepPolyPropagation()
 {
     if ( _deepPolyAnalysis == nullptr )

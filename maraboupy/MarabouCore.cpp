@@ -505,11 +505,11 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
         py::print( "Solving with DeepPoly ... \n" );
         options.setOptions();
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
 
         if ( !engine.solveWithDeepPoly( inputQuery ) )
         {
@@ -518,16 +518,33 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
         }
 
         // Extract bounds
-        auto preprocessorQuery = engine.getQuery();
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
-            // ret[i] = std::make_tuple( preprocessorQuery->getLowerBound( i ),
-            //                           preprocessorQuery->getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -562,11 +579,11 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
         py::print( "Solving with Interval Arithmetic ... (test) \n" );
         options.setOptions();
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
 
         if ( !engine.solveWithIntervalArithmetic( inputQuery ) )
         {
@@ -574,16 +591,34 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
             return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
         }
 
-
         // Extract bounds
-        engine.extractBounds( inputQuery );
         resultString = exitCodeToString( engine.getExitCode() );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -620,11 +655,11 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
         // since the default value is "deeppoly"
         Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
 
         if ( !engine.solveWithSymbolic( inputQuery ) )
         {
@@ -634,13 +669,33 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
         }
 
         // Extract bounds
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        resultString = exitCodeToString( engine.getExitCode() );
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -676,11 +731,11 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
         Engine engine;
         // It might be better that we don't use the result of processInputQuery,
         // but still using our BP to determine the result of verification.
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
         // engine.processInputQuery( inputQuery );
 
         if ( !engine.solveWithDeepPolyBFA( inputQuery ) )
@@ -691,13 +746,32 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -732,12 +806,11 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
         py::print( "Solving with Interval Arithmetic BFA\n" );
         options.setOptions();
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
-        // engine.processInputQuery( inputQuery );
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
 
         if ( !engine.solveWithIntervalArithmeticBFA( inputQuery ) )
         {
@@ -747,13 +820,32 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -787,12 +879,11 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
         options.setOptions();
         Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
         Engine engine;
-        if ( !engine.processInputQuery( inputQuery ) )
-        {
-            resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        }
-        // engine.processInputQuery( inputQuery );
+        // if ( !engine.processInputQuery( inputQuery ) )
+        // {
+        //     resultString = exitCodeToString( engine.getExitCode() );
+        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+        // }
 
         if ( !engine.solveWithSymbolicBFA( inputQuery ) )
         {
@@ -802,13 +893,32 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
+        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
+            _networkLevelReasoner->getLayerIndexToLayer();
+        unsigned int i = 0;
+        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+            const NLR::Layer *layer = layerIndexToLayer[layerId];
+            py::print( "layer->getSize(): ", layer->getSize() );
+            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+            {
+                double lb = layer->getLb( neuronId );
+                double ub = layer->getUb( neuronId );
+                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
+                // py::print( "lb: ", lb, "ub: ", ub );
+
+                // set lower bound and upper bound in tuple
+                ret[i] = std::make_tuple( lb, ub );
+                i++;
+            }
         }
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
+        //                               _networkLevelReasoner.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
