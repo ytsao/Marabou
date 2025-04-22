@@ -15,6 +15,8 @@
 
 #include "BackwardAnalysis.h"
 
+#include "NetworkLevelReasoner.h"
+
 namespace BP {
 BackPropagation::BackPropagation()
 {
@@ -26,7 +28,6 @@ BackPropagation::~BackPropagation()
 
 bool BackPropagation::boundChecking( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                                     const unsigned int pcId,
                                      const unsigned int layerId ) const
 {
     /*
@@ -45,7 +46,7 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
         double lb = layer->getLb( neuronId );
         double ub = layer->getUb( neuronId );
         Interval interval = Interval( lb, ub );
-        std::string name = "x_" + std::to_string( layerId + 1 ) + "_" + std::to_string( neuronId );
+        std::string name = "x_" + std::to_string( layerId ) + "_" + std::to_string( neuronId );
         variables[name] = interval;
     }
 
@@ -53,8 +54,7 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
     for ( auto &orCondition : _postConditions )
     {
         bool andResult = false;
-        std::vector<std::string> andConstraints = orCondition.second[pcId];
-        /* bool isLastLayer = pcId == orCondition.second.size() - 1; */
+        std::vector<std::string> andConstraints = orCondition.second[layerId];
         ASTEvaluator ast = ASTEvaluator( &variables );
         for ( auto &andConstraint : andConstraints )
         {
@@ -65,6 +65,7 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
             //
             // Because our algorithm assumes that the post-conditions are in the form of
             // Ax + b >= 0.
+            printf( "andConstraint = %s\n", andConstraint.c_str() );
             Interval result = -ast.evaluate( andConstraint.c_str() );
             printf( "result = %f\n", result.getLowerBound() );
             if ( result.getLowerBound() < 0 )
@@ -88,7 +89,7 @@ void BackPropagation::build( const Query &inputQuery,
     _initPostConditions( inputQuery, _networkLevelReasoner, preprocessor );
     _buildRelations( inputQuery, _networkLevelReasoner );
     // dump();
-    _generateNewPostConditions();
+    _generateNewPostConditions( inputQuery, _networkLevelReasoner );
 }
 
 void BackPropagation::dump() const
@@ -105,12 +106,12 @@ void BackPropagation::dump() const
         }
         printf( "%s = %s\n", var.first.c_str(), dep_vars.c_str() );
 
-        std::string dep_vars_id = "";
-        for ( auto &v : var.second )
-        {
-            dep_vars_id += " term = " + v.term + " ; id = " + std::to_string( v.id ) + " , ";
-        }
-        printf( "%s = %s\n", var.first.c_str(), dep_vars_id.c_str() );
+        // std::string dep_vars_id = "";
+        // for ( auto &v : var.second )
+        // {
+        //     dep_vars_id += " term = " + v.term + " ; id = " + std::to_string( v.id ) + " , ";
+        // }
+        // printf( "%s = %s\n", var.first.c_str(), dep_vars_id.c_str() );
     }
 
     return;
@@ -131,8 +132,10 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
     NLR::Layer outputLayer = _networkLevelReasoner.getLayer( numberOfLayers - 1 );
     for ( unsigned int i = 0; i < outputLayer.getSize(); ++i )
     {
-        std::string name = "x_" + std::to_string( numberOfLayers ) + "_" + std::to_string( i );
+        std::string name = "x_" + std::to_string( numberOfLayers - 1 ) + "_" + std::to_string( i );
         Node node = Node( inputQuery._outputIndexToVariable[i], 1, name );
+        _outputVariables.append( name );
+        printf( "output variable name = %s\n", name.c_str() );
     }
 
     // create the post-conditions
@@ -178,7 +181,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 {
                     // lhs
                     double coefficient = eq.getCoefficient( pv );
-                    std::string term = "x_" + std::to_string( numberOfLayers ) + "_" +
+                    std::string term = "x_" + std::to_string( numberOfLayers - 1 ) + "_" +
                                        std::to_string( inputQuery._variableToOutputIndex[pv] ) +
                                        " + ";
                     postCondition += std::to_string( coefficient ) + " * " + term;
@@ -224,7 +227,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 // this equation is a post-condition;
                 // lhs
                 double coefficient = eq.getCoefficient( pv );
-                std::string term = "x_" + std::to_string( numberOfLayers ) + "_" +
+                std::string term = "x_" + std::to_string( numberOfLayers - 1 ) + "_" +
                                    std::to_string( inputQuery._variableToOutputIndex[pv] ) + " + ";
                 postCondition += std::to_string( coefficient ) + " * " + term;
 
@@ -249,8 +252,9 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
     /*
         Build the formulation for computing each variable.
     */
-    unsigned int linearLayerId = 0;
+    unsigned int layerCounter = 0;
     unsigned int numberOfLayers = _networkLevelReasoner.getNumberOfLayers();
+    // _networkLevelReasoner.dumpTopology();
     Map<unsigned int, NLR::Layer *> _layerIndexToLayer =
         _networkLevelReasoner.getLayerIndexToLayer();
 
@@ -260,51 +264,77 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
         NLR::Layer::Type layerType = currentLayer->getLayerType();
         if ( layerType == NLR::Layer::Type::ABSOLUTE_VALUE )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::BILINEAR )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::INPUT )
         {
             // In my opinion, NLR::Layer::Type::INPUT == torch.nn.Flatten;
             // For the Flatten layer,
             // we don't need to do anything.
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::LEAKY_RELU )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::MAX )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::RELU )
         {
-            linearLayerId++;
+            if ( index == numberOfLayers - 1 )
+            {
+                _isActivationBeforeOutput = true;
+                // In this situation, the one previous layer must be "WEIGHTED_SUM"
+                // But, there is no weights between the output and the provious layer.
+                // Thus, we only need to build the connection to link each neuon with same index in
+                // the layer. For example, x_1_0 = x_2_0, x_1_1 = x_2_1, x_1_2 = x_2_2, ...
+                for ( unsigned int i = 0; i < currentLayer->getSize(); ++i )
+                {
+                    std::string var1 = "x_" + std::to_string( index ) + "_" + std::to_string( i );
+                    Node var2 = Node(
+                        i, 1, "x_" + std::to_string( index - 1 ) + "_" + std::to_string( i ) );
+                    _vars[var1].push_back( var2 );
+                }
+            }
+            else
+            {
+                layerCounter++;
+            }
             continue;
         }
         else if ( layerType == NLR::Layer::Type::SIGMOID )
         {
-            break;
+            if ( index == numberOfLayers )
+            {
+                _isActivationBeforeOutput = true;
+            }
+            else
+            {
+                layerCounter++;
+            }
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::SIGN )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::SOFTMAX )
         {
-            break;
+            continue;
         }
         else if ( layerType == NLR::Layer::Type::WEIGHTED_SUM )
         {
             // In my opinion, NLR::Layer::Type::WEIGHTED_SUM == torch.Linear;
+            bool isBeforeIputLayer = index == 1 ? true : false;
             for ( unsigned int i = 0; i < currentLayer->getSize(); ++i )
             {
-                std::string var1 = "x_" + std::to_string( numberOfLayers - linearLayerId ) + "_" +
-                                   std::to_string( i );
+                std::string var1 = "x_" + std::to_string( index ) + "_" + std::to_string( i );
 
                 // ref: LPFormulatior.cpp `Line 1589`;
                 // To see how to use layer->getSourceLayers();
@@ -322,8 +352,8 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
                             Node var2 =
                                 Node( j,
                                       weight,
-                                      "x_" + std::to_string( numberOfLayers - linearLayerId - 2 ) +
-                                          "_" + std::to_string( j ) );
+                                      "x_" + std::to_string( index - 2 + isBeforeIputLayer ) + "_" +
+                                          std::to_string( j ) );
                             _vars[var1].push_back( var2 );
                         }
                     }
@@ -338,99 +368,162 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
             _numberOfLinearLayers++;
         }
 
-        linearLayerId++;
+        layerCounter++;
     }
 
     return;
 }
 
-void BackPropagation::_generateNewPostConditions()
+void BackPropagation::_generateNewPostConditions(
+    const Query &inputQuery,
+    const NLR::NetworkLevelReasoner &_networkLevelReasoner )
 {
     /*
-        Create new post-conditions for other layers by original post-conditions.
-        Build an abstract syntax tree (AST) for representing the post-conditions.
-    */
+     * New implementation, we'll create the same size of _postConditions list as Layers.
+     * When we meet activation function, we create the empty list add into _postConditions.
+     * Otherwise, we follow the same rule as before.
+     *
+     * The benefit for this new implementation is that we don't need to care pcId,
+     * we can just use layerId to access the _postConditions.
+     * Then, we don't need to worrty if the network topology is changed.
+     */
+    int numLayersWithAdditionalPostConditions =
+        Options::get()->getInt( Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
+    unsigned int numberOfLayers = _networkLevelReasoner.getNumberOfLayers();
+    Map<unsigned int, NLR::Layer *> _layerIndexToLayer =
+        _networkLevelReasoner.getLayerIndexToLayer();
+
     for ( unsigned int i = 0; i < _numberOfOrConditions + 1; ++i )
     {
-        int numLayersWithAddtionalPostConditions = Options::get()->getInt(
-            Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
-        while ( _postConditions[i].size() < numLayersWithAddtionalPostConditions )
+        unsigned int countAddedPostConditions = 1; // It should be 1, because there is an onriginal
+                                                   // post-condition in the output layer by default.
+        std::vector<std::string> theLastPostConditions = _postConditions[i][0];
+
+        /*
+         * We skip the output layer here, since we have already added the origin post-conditions in
+         * the output layer in initPostConditions. Therefore, we don't need to take the type of last
+         * layer into account.
+         *
+         * When we meet the activation layer, we just skip it to add the empty post-condition into
+         * _postConditions.
+         */
+        for ( int index = numberOfLayers - 2; index >= 0; --index )
         {
-            // Extract the last post-conditions,
-            // Declare a new post-condition for the previous layer.
-            std::string newPostCondition = "";
+            NLR::Layer *currentLayer = _layerIndexToLayer[index];
+            NLR::Layer::Type layerType = currentLayer->getLayerType();
 
-            std::vector<std::string> theLastPostConditions = _postConditions[i][0];
-            std::vector<std::string> newPostConditions;
-
-            for ( auto &postCondition : theLastPostConditions )
+            if ( layerType == NLR::Layer::Type::ABSOLUTE_VALUE )
             {
-                // Split the postCondition string by whitespace
-                std::istringstream iss( postCondition );
-                std::vector<std::string> tokens;
-                std::string token;
-
-                // Read tokens separated by whitespace
-                while ( iss >> token )
-                    tokens.push_back( token );
-
-                for ( unsigned int i = 0; i < tokens.size(); ++i )
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::BILINEAR )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::INPUT )
+            {
+                _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::LEAKY_RELU )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::MAX )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::RELU )
+            {
+                _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::SIGMOID )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::SIGN )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::SOFTMAX )
+            {
+                continue;
+            }
+            else if ( layerType == NLR::Layer::Type::WEIGHTED_SUM )
+            {
+                if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    if ( _vars.exists( tokens[i] ) )
+                    std::vector<std::string> newPostConditions;
+                    for ( auto &postCondition : theLastPostConditions )
                     {
-                        std::string newVariables = "ReLU( ";
-                        bool hasBias = false;
-                        for ( auto &dep_var : _vars[tokens[i]] )
+                        // Split the postCondition string by whitespace
+                        std::istringstream iss( postCondition );
+                        std::vector<std::string> tokens;
+                        std::string token;
+
+                        // Read tokens separated by whitespace
+                        while ( iss >> token )
+                            tokens.push_back( token );
+
+                        for ( unsigned int j = 0; j < tokens.size(); ++j )
                         {
-                            if ( dep_var.term == "bias" )
+                            if ( _vars.exists( tokens[j] ) )
                             {
-                                hasBias = true;
-                                newVariables += std::to_string( dep_var.coefficient );
-                            }
-                            else
-                            {
-                                newVariables += std::to_string( dep_var.coefficient ) + " * " +
-                                                dep_var.term + " + ";
+                                std::string newVariables = "ReLU( ";
+                                bool hasBias = false;
+                                for ( auto &dep_var : _vars[tokens[j]] )
+                                {
+                                    if ( dep_var.term == "bias" )
+                                    {
+                                        hasBias = true;
+                                        newVariables += std::to_string( dep_var.coefficient );
+                                    }
+                                    else
+                                    {
+                                        newVariables += std::to_string( dep_var.coefficient ) +
+                                                        " * " + dep_var.term + " + ";
+                                    }
+                                }
+                                // if the last term is not bias, then remove the last character "+"
+                                // from string.
+                                if ( !hasBias )
+                                    newVariables =
+                                        newVariables.substr( 0, newVariables.size() - 2 );
+                                newVariables += " )";
+                                tokens[j] = newVariables;
                             }
                         }
-                        // if the last term is not bias, then remove the last character "+" from
-                        // string.
-                        if ( !hasBias )
-                            newVariables = newVariables.substr( 0, newVariables.size() - 2 );
-                        newVariables += " )";
-                        tokens[i] = newVariables;
+
+                        // Concate the tokens into a new postCondition
+                        std::string newPostCondition = "";
+                        for ( unsigned int j = 0; j < tokens.size(); ++j )
+                        {
+                            if ( tokens[j] == "*" )
+                                tokens[j] = " * ";
+                            else if ( tokens[j] == "+" )
+                                tokens[j] = " + ";
+
+                            newPostCondition += tokens[j];
+                        }
+
+                        // Add the new postCondition to the list of postConditions
+                        newPostConditions.push_back( newPostCondition );
                     }
+                    // Add the new post-condition to the list of post-conditions.
+                    _postConditions[i].insert( _postConditions[i].begin(), newPostConditions );
+                    countAddedPostConditions++;
+                    theLastPostConditions = newPostConditions;
                 }
-
-                // Concate the tokens into a new post-condition.
-                std::string newPostCondition = "";
-                for ( unsigned int i = 0; i < tokens.size(); ++i )
+                else
                 {
-                    if ( tokens[i] == "*" )
-                        tokens[i] = " * ";
-                    else if ( tokens[i] == "+" )
-                        tokens[i] = " + ";
-
-                    newPostCondition += tokens[i];
+                    _postConditions[i].insert( _postConditions[i].begin(),
+                                               std::vector<std::string>() );
                 }
-
-                // Add the new post-condition to the list of post-conditions.
-                newPostConditions.push_back( newPostCondition );
+                continue;
             }
-
-            // Add the new post-condition to the list of post-conditions.
-            _postConditions[i].insert( _postConditions[i].begin(), newPostConditions );
-        }
-
-        if ( numLayersWithAddtionalPostConditions < _numberOfLinearLayers + 1 )
-        {
-            for ( unsigned int _ = numLayersWithAddtionalPostConditions;
-                  _ < _numberOfLinearLayers + 1;
-                  ++_ )
-                _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
         }
     }
-
     return;
 }
 } // namespace BP

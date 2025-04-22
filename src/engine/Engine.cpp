@@ -666,103 +666,34 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // DeepPoly
-        // TODO: customize the deepPolyPropagation function to be able to use backward analysis
         const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
             _networkLevelReasoner->getLayerIndexToLayer();
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
-        /*
-            pcId := the index of the layer that having the additional/original post-condition.
-        */
         unsigned int numberOfLayers = getNumberOfLayers();
-        unsigned int pcId = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
 
-            NLR::Layer::Type layerType = layerIndexToLayer[layerId]->getLayerType();
-            if ( layerType == NLR::Layer::Type::RELU && layerId != numberOfLayers - 1 )
-                continue;
-            if ( ( layerType == NLR::Layer::Type::INPUT ||
-                   layerType == NLR::Layer::Type::WEIGHTED_SUM ) &&
-                 ( backPropagation._postConditions[0][pcId].size() == 0 ) )
+            if ( backPropagation._postConditions[0][layerId].size() == 0 )
             {
-                pcId++;
                 continue;
             }
+
             extractBounds( inputQuery );
+            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
             if ( backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, pcId, layerId ) )
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
                 throw InfeasibleQueryException();
             }
-            else if ( ( pcId == backPropagation._postConditions[0].size() - 1 ) &&
-                      ( layerId != backPropagation._numberOfLinearLayers - 1 ) )
-            {
-                pcId--;
-            }
-            pcId++;
         }
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
-
-        // TODO:
-        // I'm not sure why the bounds of output neurons are not updated.
-        //
-        // I need to figure out how to decide the verification result properly.
-
-
-        // if ( !_tableau->allBoundsValid() )
-        // {
-        //     // Some variable bounds are invalid, so the query is unsat
-        //     throw InfeasibleQueryException();
-        // }
-
-        // // TODO:
-        // if ( allVarsWithinBounds() )
-        // {
-        //     printf( "Shit why am I here?\n" );
-        //     applyBoundTightenings();
-        //     if ( applyAllValidConstraintCaseSplits() )
-        //         printf( "not sure how to do for this part\n" );
-
-        //     // The linear portion of the problem has been solved.
-        //     // Check the status of the PL constraints
-        //     bool solutionFound = adjustAssignmentToSatisfyNonLinearConstraints();
-        //     if ( solutionFound )
-        //     {
-        //         if ( allNonlinearConstraintsHold() )
-        //         {
-        //             // Allows checking proofs produced for UNSAT leaves of satisfiable query
-        //             // search tree
-        //             if ( _produceUNSATProofs )
-        //             {
-        //                 ASSERT( _UNSATCertificateCurrentPointer );
-        //                 ( **_UNSATCertificateCurrentPointer ).setSATSolutionFlag();
-        //             }
-        //             _exitCode = Engine::SAT;
-        //             return true;
-        //         }
-        //         else if ( !hasBranchingCandidate() )
-        //         {
-        //             if ( _verbosity > 0 )
-        //             {
-        //                 printf( "\nEngine::solve: at leaf node but solving inconclusive\n" );
-        //                 _statistics.print();
-        //             }
-        //             _exitCode = Engine::UNKNOWN;
-        //             return false;
-        //         }
-        //     }
-        // }
-        // else
-        // {
-        //     printf( "Oops, I don't know how to do for this part\n" );
-        // }
     }
     catch ( const InfeasibleQueryException & )
     {
@@ -799,87 +730,36 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // IntervalArithmetic
-        // TODO: customize the intervalArithmeticBoundPropagation function to be able to use
         const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
             _networkLevelReasoner->getLayerIndexToLayer();
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
-        unsigned int pcId = 0;
         for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
             // Interval propagate one layer
             if ( layerId != 0 )
                 _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
 
-            NLR::Layer::Type layerType = layerIndexToLayer[layerId]->getLayerType();
-            if ( layerType == NLR::Layer::Type::RELU && layerId != numberOfLayers - 1 )
-                continue;
-            if ( ( layerType == NLR::Layer::Type::INPUT ||
-                   layerType == NLR::Layer::Type::WEIGHTED_SUM ) &&
-                 ( backPropagation._postConditions[0][pcId].size() == 0 ) )
+            if ( backPropagation._postConditions[0][layerId].size() == 0 )
             {
-                pcId++;
                 continue;
             }
+
             extractBounds( inputQuery );
             _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
             if ( backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, pcId, layerId ) )
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
                 throw InfeasibleQueryException();
             }
-            else if ( ( pcId == backPropagation._postConditions[0].size() - 1 ) &&
-                      ( layerId != backPropagation._numberOfLinearLayers - 1 ) )
-            {
-                pcId--;
-            }
-            pcId++;
         }
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
-        // if ( !_tableau->allBoundsValid() )
-        // {
-        //     // Some variable bounds are invalid, so the query is unsat
-        //     throw InfeasibleQueryException();
-        // }
-
-        // // TODO:
-        // if ( allVarsWithinBounds() )
-        // {
-        //     // The linear portion of the problem has been solved.
-        //     // Check the status of the PL constraints
-        //     bool solutionFound = adjustAssignmentToSatisfyNonLinearConstraints();
-        //     if ( solutionFound )
-        //     {
-        //         if ( allNonlinearConstraintsHold() )
-        //         {
-        //             // Allows checking proofs produced for UNSAT leaves of satisfiable query
-        //             // search tree
-        //             if ( _produceUNSATProofs )
-        //             {
-        //                 ASSERT( _UNSATCertificateCurrentPointer );
-        //                 ( **_UNSATCertificateCurrentPointer ).setSATSolutionFlag();
-        //             }
-        //             _exitCode = Engine::SAT;
-        //             return true;
-        //         }
-        //         else if ( !hasBranchingCandidate() )
-        //         {
-        //             if ( _verbosity > 0 )
-        //             {
-        //                 printf( "\nEngine::solve: at leaf node but solving inconclusive\n" );
-        //                 _statistics.print();
-        //             }
-        //             _exitCode = Engine::UNKNOWN;
-        //             return false;
-        //         }
-        //     }
-        // }
     }
     catch ( const InfeasibleQueryException & )
     {
@@ -912,7 +792,6 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
             printInputBounds( inputQuery );
 
         initializeNetworkLevelReasoning();
-
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // Symbolic
@@ -922,78 +801,24 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
-        unsigned int pcId = 0;
         for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
         {
             // Symbolic propagation one layer
             _networkLevelReasoner->symbolicBoundPropagationForOneLayer( layerId );
 
-            NLR::Layer::Type layerType = layerIndexToLayer[layerId]->getLayerType();
-            if ( layerType == NLR::Layer::Type::RELU && layerId != numberOfLayers - 1 )
-                continue;
-            if ( ( layerType == NLR::Layer::Type::INPUT ||
-                   layerType == NLR::Layer::Type::WEIGHTED_SUM ) &&
-                 ( backPropagation._postConditions[0][pcId].size() == 0 ) )
-            {
-                pcId++;
-                continue;
-            }
             extractBounds( inputQuery );
+            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
             if ( backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, pcId, layerId ) )
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
                 throw InfeasibleQueryException();
             }
-            else if ( ( pcId == backPropagation._postConditions[0].size() - 1 ) &&
-                      ( layerId != backPropagation._numberOfLinearLayers - 1 ) )
-            {
-                pcId--;
-            }
-            pcId++;
         }
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
-        // if ( !_tableau->allBoundsValid() )
-        // {
-        //     // Some variable bounds are invalid, so the query is unsat
-        //     throw InfeasibleQueryException();
-        // }
-
-        // // TODO:
-        // if ( allVarsWithinBounds() )
-        // {
-        //     // The linear portion of the problem has been solved.
-        //     // Check the status of the PL constraints
-        //     bool solutionFound = adjustAssignmentToSatisfyNonLinearConstraints();
-        //     if ( solutionFound )
-        //     {
-        //         if ( allNonlinearConstraintsHold() )
-        //         {
-        //             // Allows checking proofs produced for UNSAT leaves of satisfiable query
-        //             // search tree
-        //             if ( _produceUNSATProofs )
-        //             {
-        //                 ASSERT( _UNSATCertificateCurrentPointer );
-        //                 ( **_UNSATCertificateCurrentPointer ).setSATSolutionFlag();
-        //             }
-        //             _exitCode = Engine::SAT;
-        //             return true;
-        //         }
-        //         else if ( !hasBranchingCandidate() )
-        //         {
-        //             if ( _verbosity > 0 )
-        //             {
-        //                 printf( "\nEngine::solve: at leaf node but solving inconclusive\n" );
-        //                 _statistics.print();
-        //             }
-        //             _exitCode = Engine::UNKNOWN;
-        //             return false;
-        //         }
-        //     }
-        // }
     }
     catch ( const InfeasibleQueryException & )
     {

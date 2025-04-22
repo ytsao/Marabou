@@ -37,13 +37,17 @@ public:
 
     bool boundChecking( const Query &inputQuery,
                         const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                        const unsigned int pcId,
                         const unsigned int layerId ) const;
     void boundRefinement(); // TODO: maybe we need to use this to improve the bounds from DeepPoly &
                             // Interval
     void build( const Query &inputQuery,
                 const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                 const Preprocessor &preprocessor );
+
+    inline bool getIsActivationBeforeOutput()
+    {
+        return _isActivationBeforeOutput;
+    }
 
     // All the properties that I need to implement the backward analysis.
     // _post_conditions;    -> inputQuery.equations
@@ -72,19 +76,21 @@ public:
     unsigned int _numberOfOrConditions = 0;
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
+    bool _isActivationBeforeOutput = false;
+    List<std::string> _outputVariables;
     // Map<int, List<List<std::string>>> _postConditions;
     Map<int, std::vector<std::vector<std::string>>> _postConditions;
 
     // Map<std::string, List<Node>> _vars;
     Map<std::string, std::vector<Node>> _vars;
-    Map<unsigned int, unsigned int> _mergedVar2OriginalVar;
 
     void _initPostConditions( const Query &inputQuery,
                               const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                               const Preprocessor &preprocessor );
     void _buildRelations( const Query &inputQuery,
                           const NLR::NetworkLevelReasoner &_networkLevelReasoner );
-    void _generateNewPostConditions();
+    void _generateNewPostConditions( const Query &inputQuery,
+                                     const NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void dump() const;
 };
 } // namespace BP
