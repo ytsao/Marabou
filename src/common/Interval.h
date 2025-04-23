@@ -41,6 +41,16 @@ public:
     double getLowerBound() const;
     double getUpperBound() const;
 
+    inline void setLowerBound( double lb )
+    {
+        _lb = lb;
+    }
+
+    inline void setUpperBound( double ub )
+    {
+        _ub = ub;
+    }
+
 
 private:
     double _lb;

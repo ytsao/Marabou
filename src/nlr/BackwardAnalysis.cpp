@@ -54,7 +54,7 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
     for ( auto &orCondition : _postConditions )
     {
         bool andResult = false;
-        std::vector<std::string> andConstraints = orCondition.second[layerId];
+        Vector<std::string> andConstraints = orCondition.second[layerId];
         ASTEvaluator ast = ASTEvaluator( &variables );
         for ( auto &andConstraint : andConstraints )
         {
@@ -163,7 +163,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         for ( auto &split : splits )
         {
             List<Equation> splitEquations = split.getEquations();
-            std::vector<std::string> outputLayerPostCondition;
+            Vector<std::string> outputLayerPostCondition;
             for ( auto &eq : splitEquations )
             {
                 List<unsigned int> participatingVariables = eq.getListParticipatingVariables();
@@ -193,10 +193,10 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
 
                 // remove the last character "+" from string.
                 postCondition = postCondition.substr( 0, postCondition.size() - 2 );
-                outputLayerPostCondition.push_back( postCondition );
+                outputLayerPostCondition.append( postCondition );
             }
             // this disjunctive constraint is a post-condition;
-            _postConditions[_numberOfOrConditions].push_back( outputLayerPostCondition );
+            _postConditions[_numberOfOrConditions].append( outputLayerPostCondition );
             _numberOfOrConditions++;
         }
     }
@@ -208,7 +208,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         _numberOfOrConditions--;
     else
     {
-        std::vector<std::string> outputLayerPostCondition;
+        Vector<std::string> outputLayerPostCondition;
         for ( auto &eq : equations )
         {
             List<unsigned int> participatingVariables = eq.getListParticipatingVariables();
@@ -238,9 +238,9 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
 
             // remove the last character "+" from string.
             postCondition = postCondition.substr( 0, postCondition.size() - 2 );
-            outputLayerPostCondition.push_back( postCondition );
+            outputLayerPostCondition.append( postCondition );
         }
-        _postConditions[_numberOfOrConditions].push_back( outputLayerPostCondition );
+        _postConditions[_numberOfOrConditions].append( outputLayerPostCondition );
     }
 
     return;
@@ -299,7 +299,7 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
                     std::string var1 = "x_" + std::to_string( index ) + "_" + std::to_string( i );
                     Node var2 = Node(
                         i, 1, "x_" + std::to_string( index - 1 ) + "_" + std::to_string( i ) );
-                    _vars[var1].push_back( var2 );
+                    _vars[var1].append( var2 );
                 }
             }
             else
@@ -354,14 +354,14 @@ void BackPropagation::_buildRelations( const Query &inputQuery,
                                       weight,
                                       "x_" + std::to_string( index - 2 + isBeforeIputLayer ) + "_" +
                                           std::to_string( j ) );
-                            _vars[var1].push_back( var2 );
+                            _vars[var1].append( var2 );
                         }
                     }
                     double bias = currentLayer->getBias( i );
                     if ( bias != 0 )
                     {
                         Node biasNode = Node( -1, bias, "bias" );
-                        _vars[var1].push_back( biasNode );
+                        _vars[var1].append( biasNode );
                     }
                 }
             }
@@ -397,7 +397,7 @@ void BackPropagation::_generateNewPostConditions(
     {
         unsigned int countAddedPostConditions = 1; // It should be 1, because there is an onriginal
                                                    // post-condition in the output layer by default.
-        std::vector<std::string> theLastPostConditions = _postConditions[i][0];
+        Vector<std::string> theLastPostConditions = _postConditions[i][0];
 
         /*
          * We skip the output layer here, since we have already added the origin post-conditions in
@@ -422,7 +422,7 @@ void BackPropagation::_generateNewPostConditions(
             }
             else if ( layerType == NLR::Layer::Type::INPUT )
             {
-                _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
+                _postConditions[i].insertHead( Vector<std::string>() );
                 continue;
             }
             else if ( layerType == NLR::Layer::Type::LEAKY_RELU )
@@ -435,7 +435,7 @@ void BackPropagation::_generateNewPostConditions(
             }
             else if ( layerType == NLR::Layer::Type::RELU )
             {
-                _postConditions[i].insert( _postConditions[i].begin(), std::vector<std::string>() );
+                _postConditions[i].insertHead( Vector<std::string>() );
                 continue;
             }
             else if ( layerType == NLR::Layer::Type::SIGMOID )
@@ -454,17 +454,17 @@ void BackPropagation::_generateNewPostConditions(
             {
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    std::vector<std::string> newPostConditions;
+                    Vector<std::string> newPostConditions;
                     for ( auto &postCondition : theLastPostConditions )
                     {
                         // Split the postCondition string by whitespace
                         std::istringstream iss( postCondition );
-                        std::vector<std::string> tokens;
+                        Vector<std::string> tokens;
                         std::string token;
 
                         // Read tokens separated by whitespace
                         while ( iss >> token )
-                            tokens.push_back( token );
+                            tokens.append( token );
 
                         for ( unsigned int j = 0; j < tokens.size(); ++j )
                         {
@@ -508,17 +508,16 @@ void BackPropagation::_generateNewPostConditions(
                         }
 
                         // Add the new postCondition to the list of postConditions
-                        newPostConditions.push_back( newPostCondition );
+                        newPostConditions.append( newPostCondition );
                     }
                     // Add the new post-condition to the list of post-conditions.
-                    _postConditions[i].insert( _postConditions[i].begin(), newPostConditions );
+                    _postConditions[i].insertHead( newPostConditions );
                     countAddedPostConditions++;
                     theLastPostConditions = newPostConditions;
                 }
                 else
                 {
-                    _postConditions[i].insert( _postConditions[i].begin(),
-                                               std::vector<std::string>() );
+                    _postConditions[i].insertHead( Vector<std::string>() );
                 }
                 continue;
             }

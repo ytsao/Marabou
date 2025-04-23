@@ -676,7 +676,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
 
-            if ( backPropagation._postConditions[0][layerId].size() == 0 )
+            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             {
                 continue;
             }
@@ -687,6 +687,23 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             // Backward analysis
             if ( backPropagation.boundChecking(
                      *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            {
+                throw InfeasibleQueryException();
+            }
+        }
+
+        // // TODO: fixed point iteration procedure;
+        // // Update the bounds for each neuron by fixed point iteration.
+        // // If there is no bound can be tightened, then terminate the algorithm.
+        FPL::FixedPointPropagation fixedPointPropagation( backPropagation );
+        while ( fixedPointPropagation.iterate( *_networkLevelReasoner ) )
+        {
+            _networkLevelReasoner->deepPolyPropagationForOneLayer( numberOfLayers - 1 );
+            extractBounds( inputQuery );
+            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
+
+            if ( backPropagation.boundChecking(
+                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, numberOfLayers - 1 ) )
             {
                 throw InfeasibleQueryException();
             }
@@ -742,7 +759,7 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
             if ( layerId != 0 )
                 _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
 
-            if ( backPropagation._postConditions[0][layerId].size() == 0 )
+            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             {
                 continue;
             }

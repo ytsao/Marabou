@@ -49,13 +49,25 @@ public:
         return _isActivationBeforeOutput;
     }
 
-    // All the properties that I need to implement the backward analysis.
-    // _post_conditions;    -> inputQuery.equations
-    // _vars;               -> inputQuery.getInputVariables() / inputQuery.getOutputVariables()
-    // _network;            -> Layer.h
-    // _true_label;         -> (maybe I dont need this actually)
-    // _start_layer_id;     ->
-    // _num_linear_layers;  ->
+    inline unsigned int getNumberOfOrConditions()
+    {
+        return _numberOfOrConditions;
+    }
+
+    inline unsigned int getNumberOfLinearLayers()
+    {
+        return _numberOfLinearLayers;
+    }
+
+    inline List<std::string> geTOutputVariables()
+    {
+        return _outputVariables;
+    }
+
+    inline Map<int, Vector<Vector<std::string>>> getPostConditions()
+    {
+        return _postConditions;
+    }
 
     struct Node
     {
@@ -73,16 +85,17 @@ public:
         std::string term;
     };
 
+    void dump() const;
+
+private:
     unsigned int _numberOfOrConditions = 0;
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
     List<std::string> _outputVariables;
-    // Map<int, List<List<std::string>>> _postConditions;
-    Map<int, std::vector<std::vector<std::string>>> _postConditions;
+    Map<int, Vector<Vector<std::string>>> _postConditions;
 
-    // Map<std::string, List<Node>> _vars;
-    Map<std::string, std::vector<Node>> _vars;
+    Map<std::string, Vector<Node>> _vars;
 
     void _initPostConditions( const Query &inputQuery,
                               const NLR::NetworkLevelReasoner &_networkLevelReasoner,
@@ -91,7 +104,6 @@ public:
                           const NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void _generateNewPostConditions( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner );
-    void dump() const;
 };
 } // namespace BP
 #endif // __BackwardAnalysis_h__
