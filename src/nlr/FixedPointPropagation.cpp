@@ -13,15 +13,17 @@
 
  **/
 
-#include "FixedPointLoop.h"
+#include "FixedPointPropagation.h"
 
 #include "Vector.h"
 
 
-namespace FPL {
+namespace FPP {
 
-FixedPointPropagation::FixedPointPropagation( const BP::BackPropagation &backPropagation )
-    : _backPropagation( backPropagation )
+FixedPointPropagation::FixedPointPropagation( unsigned int currentStartLayer,
+                                              const BP::BackPropagation &backPropagation )
+    : _currentStartLayer( currentStartLayer )
+    , _backPropagation( backPropagation )
 {
 }
 
@@ -72,7 +74,7 @@ bool FixedPointPropagation::iterate( NLR::NetworkLevelReasoner &_networkLevelRea
         for ( auto &orCondition : postConditions )
         {
             bool andResult = false;
-            std::vector<std::string> andConstraints = orCondition.second[_currentStartLayer];
+            Vector<std::string> andConstraints = orCondition.second[_currentStartLayer];
             for ( auto &andConstraint : andConstraints )
             {
                 List<std::string> variableOrder;
@@ -86,7 +88,7 @@ bool FixedPointPropagation::iterate( NLR::NetworkLevelReasoner &_networkLevelRea
                 std::string token;
 
                 while ( iss >> token )
-                    tokens.push_back( token );
+                    tokens.append( token );
 
                 for ( unsigned int j = 0; j < tokens.size(); ++j )
                 {
@@ -107,9 +109,9 @@ bool FixedPointPropagation::iterate( NLR::NetworkLevelReasoner &_networkLevelRea
                     Interval result = ast.evaluate( andConstraint.c_str() );
 
                     // update bounds
-                    if ( result.getlowerBound() > temp_interval.getLowerBound() )
+                    if ( result.getLowerBound() > temp_interval.getLowerBound() )
                     {
-                        temp_interval.setLowerBound( result.getlowerBound() );
+                        temp_interval.setLowerBound( result.getLowerBound() );
                         isLocalTightenBounds = true;
                         isGlobalTightenBounds = true;
                     }
@@ -136,4 +138,4 @@ bool FixedPointPropagation::iterate( NLR::NetworkLevelReasoner &_networkLevelRea
     return isGlobalTightenBounds;
 }
 
-} // namespace FPL
+} // namespace FPP

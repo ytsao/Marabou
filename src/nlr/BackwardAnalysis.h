@@ -59,12 +59,12 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline List<std::string> geTOutputVariables()
+    inline List<std::string> getOutputVariables()
     {
         return _outputVariables;
     }
 
-    inline Map<int, Vector<Vector<std::string>>> getPostConditions()
+    inline Map<unsigned int, Vector<Vector<std::string>>> getPostConditions()
     {
         return _postConditions;
     }
@@ -93,7 +93,7 @@ private:
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
     List<std::string> _outputVariables;
-    Map<int, Vector<Vector<std::string>>> _postConditions;
+    Map<unsigned int, Vector<Vector<std::string>>> _postConditions;
 
     Map<std::string, Vector<Node>> _vars;
 

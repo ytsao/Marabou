@@ -695,7 +695,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         // // TODO: fixed point iteration procedure;
         // // Update the bounds for each neuron by fixed point iteration.
         // // If there is no bound can be tightened, then terminate the algorithm.
-        FPL::FixedPointPropagation fixedPointPropagation( backPropagation );
+        FPP::FixedPointPropagation fixedPointPropagation( numberOfLayers - 1, backPropagation );
         while ( fixedPointPropagation.iterate( *_networkLevelReasoner ) )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( numberOfLayers - 1 );

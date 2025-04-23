@@ -13,16 +13,17 @@
 
  **/
 
-#ifndef __FixedPointLoop_h__
-#define __FixedPointLoop_h__
+#ifndef __FixedPointPropagation_h__
+#define __FixedPointPropagation_h__
 
 #include "BackwardAnalysis.h"
 
-namespace FPL {
+namespace FPP {
 class FixedPointPropagation
 {
 public:
-    FixedPointPropagation( const BP::BackPropagation &backPropagation );
+    FixedPointPropagation( unsigned int currentStartLayer,
+                           const BP::BackPropagation &backPropagation );
     ~FixedPointPropagation();
 
     bool iterate( NLR::NetworkLevelReasoner &_networkLevelReasoner );
@@ -32,5 +33,5 @@ private:
     BP::BackPropagation _backPropagation;
 };
 
-} // namespace FPL
-#endif // __FixedPointLoop_h__
+} // namespace FPP
+#endif // __FixedPointPropagation_h__

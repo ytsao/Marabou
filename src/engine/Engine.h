@@ -27,7 +27,7 @@
 #include "DantzigsRule.h"
 #include "DegradationChecker.h"
 #include "DivideStrategy.h"
-#include "FixedPointLoop.h"
+#include "FixedPointPropagation.h"
 #include "GlobalConfiguration.h"
 #include "GurobiWrapper.h"
 #include "IEngine.h"
