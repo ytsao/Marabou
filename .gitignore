@@ -1,5 +1,6 @@
 # vscode
 .vscode/
+*.idx
 
 *.d
 *.obj
