@@ -191,7 +191,7 @@ void loadProperty( InputQuery &inputQuery, std::string propertyFilePath )
     String propertyFilePathM = String( propertyFilePath );
     if ( propertyFilePath != "" )
     {
-        printf( "Property: %s\n", propertyFilePathM.ascii() );
+        // printf( "Property: %s\n", propertyFilePathM.ascii() );
         if ( propertyFilePathM.endsWith( ".vnnlib" ) )
         {
             VnnLibParser().parse( propertyFilePathM, inputQuery );
@@ -459,13 +459,6 @@ solve( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "
             resultString = exitCodeToString( engine.getExitCode() );
 
             engine.extractBounds( inputQuery );
-            for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-            {
-                // show lower bound and upper bound in tuple
-                py::print( "Lower bound: ", inputQuery.getLowerBound( i ) );
-                py::print( "Upper bound: ", inputQuery.getUpperBound( i ) );
-            }
-
             if ( engine.getExitCode() == Engine::SAT )
             {
                 engine.extractSolution( inputQuery );
@@ -489,7 +482,7 @@ solve( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "
     return std::make_tuple( resultString, ret, retStats );
 }
 
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
     // Arguments: InputQuery object, filename to redirect output
@@ -497,54 +490,30 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with DeepPoly ... \n" );
         options.setOptions();
         Engine engine;
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
-
         if ( !engine.solveWithDeepPoly( inputQuery ) )
         {
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -554,14 +523,15 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( resultString, ret, retStats, isVerifiedBeforeOutputLayer );
 }
 
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithIntervalArithmetic( InputQuery &inputQuery,
                              MarabouOptions &options,
                              std::string redirect = "" )
@@ -571,54 +541,31 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with Interval Arithmetic ... (test) \n" );
         options.setOptions();
         Engine engine;
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
 
         if ( !engine.solveWithIntervalArithmetic( inputQuery ) )
         {
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -628,14 +575,15 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( resultString, ret, retStats, isVerifiedBeforeOutputLayer );
 }
 
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
     // Arguments: InputQuery object, filename to redirect output
@@ -643,59 +591,35 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with Symbolic\n" );
-
         options.setOptions();
         // set the symbolic bound tightening type as sbt,
         // since the default value is "deeppoly"
         Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
         Engine engine;
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
 
         if ( !engine.solveWithSymbolic( inputQuery ) )
         {
             // unsat
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -705,73 +629,48 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( resultString, ret, retStats, isVerifiedBeforeOutputLayer );
 }
 
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
-    // TODO: add BFA procedure into it.
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with DeepPoly BFA\n" );
         options.setOptions();
+        Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "deeppoly" );
         Engine engine;
-        // It might be better that we don't use the result of processInputQuery,
-        // but still using our BP to determine the result of verification.
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
-        // engine.processInputQuery( inputQuery );
-
         if ( !engine.solveWithDeepPolyBFA( inputQuery ) )
         {
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            isVerifiedBeforeOutputLayer = engine.getIsVerifiedBeforeOutputLayer();
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -781,71 +680,48 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( "sat", ret, retStats, isVerifiedBeforeOutputLayer );
 }
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
                                 MarabouOptions &options,
                                 std::string redirect = "" )
 {
-    // TODO: add BFA procedure into it.
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with Interval Arithmetic BFA\n" );
         options.setOptions();
         Engine engine;
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
-
         if ( !engine.solveWithIntervalArithmeticBFA( inputQuery ) )
         {
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            isVerifiedBeforeOutputLayer = engine.getIsVerifiedBeforeOutputLayer();
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -855,70 +731,47 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( resultString, ret, retStats, isVerifiedBeforeOutputLayer );
 }
-std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics>
+std::tuple<std::string, std::map<int, std::tuple<double, double>>, Statistics, bool>
 solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::string redirect = "" )
 {
-    // TODO: add BFA procedure into it.
     // Arguments: InputQuery object, filename to redirect output
     // Returns: map from variable number to value
     std::string resultString = "";
     std::map<int, std::tuple<double, double>> ret;
     Statistics retStats;
+    bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
         redirectOutputToFile( redirect );
     try
     {
-        py::print( "Solving with Symbolic BFA\n" );
         options.setOptions();
         Options::get()->setString( Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
         Engine engine;
-        // if ( !engine.processInputQuery( inputQuery ) )
-        // {
-        //     resultString = exitCodeToString( engine.getExitCode() );
-        //     return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
-        // }
-
         if ( !engine.solveWithSymbolicBFA( inputQuery ) )
         {
             resultString = exitCodeToString( engine.getExitCode() );
-            return std::make_tuple( resultString, ret, *( engine.getStatistics() ) );
+            isVerifiedBeforeOutputLayer = engine.getIsVerifiedBeforeOutputLayer();
+            return std::make_tuple(
+                resultString, ret, *( engine.getStatistics() ), isVerifiedBeforeOutputLayer );
         }
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        const NLR::NetworkLevelReasoner *_networkLevelReasoner = engine.getNetworkLevelReasoner();
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
-        unsigned int i = 0;
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        engine.extractBounds( inputQuery );
+        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
         {
-            const NLR::Layer *layer = layerIndexToLayer[layerId];
-            py::print( "layer->getSize(): ", layer->getSize() );
-            for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-            {
-                double lb = layer->getLb( neuronId );
-                double ub = layer->getUb( neuronId );
-                // py::print( "i: ", i, " neuronId: ", neuronId, " layerId: ", layerId );
-                // py::print( "lb: ", lb, "ub: ", ub );
-
-                // set lower bound and upper bound in tuple
-                ret[i] = std::make_tuple( lb, ub );
-                i++;
-            }
+            // set lower bound and upper bound in tuple
+            ret[i] =
+                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
         }
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     // set lower bound and upper bound in tuple
-        //     ret[i] = std::make_tuple( _networkLevelReaonser.getLowerBound( i ),
-        //                               _networkLevelReasoner.getUpperBound( i ) );
-        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -928,11 +781,12 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
                  "Caught a MarabouError. Code: %u. Message: %s\n",
                  e.getCode(),
                  e.getUserMessage() );
-        return std::make_tuple( "ERROR", ret, retStats );
+        return std::make_tuple( "ERROR", ret, retStats, isVerifiedBeforeOutputLayer );
     }
     if ( output != -1 )
         restoreOutputStream( output );
-    return std::make_tuple( resultString, ret, retStats );
+
+    return std::make_tuple( resultString, ret, retStats, isVerifiedBeforeOutputLayer );
 }
 
 unsigned getNumberOfLayers( InputQuery &inputQuery )
@@ -960,6 +814,7 @@ calculateBounds( InputQuery &inputQuery, MarabouOptions &options, std::string re
     try
     {
         options.setOptions();
+        // Options::get()->setString(Options::SYMBOLIC_BOUND_TIGHTENING_TYPE, "sbt" );
 
         bool dnc = Options::get()->getBool( Options::DNC_MODE );
 
@@ -1073,8 +928,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-        
+            (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
         )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),
@@ -1089,8 +947,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-        
+             (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
         )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),
@@ -1105,8 +966,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-        
+            (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
         )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),
@@ -1121,8 +985,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-        
+            (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
         )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),
@@ -1137,8 +1004,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-          
+            (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
           )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),
@@ -1153,8 +1023,11 @@ PYBIND11_MODULE( MarabouCore, m )
             options (class:`~maraboupy.MarabouCore.Options`): Object defining the options used for Marabou
             redirect (str, optional): Filepath to direct standard output, defaults to ""
         Returns:
-            (bool): True if the query is satisfiable, False otherwise
-            
+            (tuple): tuple containing:
+                - exitCode (str): A string representing the exit code (sat/unsat/TIMEOUT/ERROR/UNKNOWN/QUIT_REQUESTED).
+                - vals (Dict[int, float]): Empty dictionary if UNSAT, otherwise a dictionary of SATisfying values for variables
+                - stats (:class:`~maraboupy.MarabouCore.Statistics`): A Statistics object to how Marabou performed
+                - isVerifiedBeforeOutputLayer (bool): True if the output layer is verified before the output layer, False otherwise
         )pbdoc",
            py::arg( "inputQuery" ),
            py::arg( "options" ),

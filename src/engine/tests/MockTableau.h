@@ -25,6 +25,7 @@
 #include "context/context.h"
 
 #include <cstring>
+#include <cxxtest/TestSuite.h>
 
 class MockTableau : public ITableau
 {

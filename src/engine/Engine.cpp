@@ -69,6 +69,7 @@ Engine::Engine()
     , _milpSolverBoundTighteningType( Options::get()->getMILPSolverBoundTighteningType() )
     , _sncMode( false )
     , _queryId( "" )
+    , _isVerifiedBeforeOutputLayer( false )
     , _produceUNSATProofs( Options::get()->getBool( Options::PRODUCE_PROOFS ) )
     , _groundBoundManager( _context )
     , _UNSATCertificate( NULL )
@@ -455,40 +456,8 @@ bool Engine::solve( double timeoutInSeconds )
     }
 }
 
-// Todo: implement those functions.
-// * ref: Test files, to see how to use those built-in functions.
 bool Engine::solveWithDeepPoly( IQuery &inputQuery )
 {
-    // ref: solve();
-    // SignalHandler::getInstance()->initialize();
-    // SignalHandler::getInstance()->registerClient( this );
-
-    // // Register the boundManager for all the PL constraints
-    // for ( auto &plConstraint : _plConstraints )
-    //     plConstraint->registerBoundManager( &_boundManager );
-    // for ( auto &nlConstraint : _nlConstraints )
-    //     nlConstraint->registerBoundManager( &_boundManager );
-
-    // // Before encoding, make sure all valid constraints are applied.
-    // applyAllValidConstraintCaseSplits();
-
-    // updateDirections();
-    // mainLoopStatistics();
-
-    // List<Tightening> bounds;
-    // _networkLevelReasoner->obtainCurrentBounds();
-    // _networkLevelReasoner->deepPolyPropagation();
-    // _networkLevelReasoner->getConstraintTightenings( bounds );
-
-    // for ( const auto &bound : bounds )
-    // {
-    //     printf( "DeepPoly: value = %f\n", bound._value );
-    // }
-
-    // return false;
-
-    //
-    // New implementation, ref: calculateBounds(const IQuery &inputQuery)
     ENGINE_LOG( "calculate bounds with DeepPoly." );
     struct timespec start = TimeUtils::sampleMicro();
 
@@ -504,30 +473,25 @@ bool Engine::solveWithDeepPoly( IQuery &inputQuery )
         // DeepPoly
         _networkLevelReasoner->deepPolyPropagation();
 
-        // // Make sure to propagate all bounds
-        // _boundManager.propagateTightenings();
-        // applyAllBoundTightenings();
-        extractBounds( inputQuery );
-        // for ( auto &outputVar : inputQuery.getOutputVariables() )
-        // {
-        //     printf( "DeepPoly: outputVar UB = %f\n", _tableau->getUpperBound( outputVar ) );
-        //     printf( "DeepPoly: outputVar LB = %f\n", _tableau->getLowerBound( outputVar ) );
-        //     printf( "-------------------\n" );
-        //     printf( "DeepPoly: outputVar UB = %f\n", inputQuery.getUpperBound( outputVar ) );
-        //     printf( "DeepPoly: outputVar LB = %f\n", inputQuery.getLowerBound( outputVar ) );
-        //     printf( "-------------------\n" );
-        //     printf( "DeepPoly: outputVar UB = %f\n",
-        //             _preprocessedQuery->getUpperBound( outputVar ) );
-        //     printf( "DeepPoly: outputVar LB = %f\n",
-        //             _preprocessedQuery->getLowerBound( outputVar ) );
-        // }
+        // Extract the bounds
+        List<Tightening> tightenings;
+        _networkLevelReasoner->getConstraintTightenings( tightenings );
+        for ( const auto &tightening : tightenings )
+        {
+            if ( tightening._type == Tightening::LB &&
+                 FloatUtils::gt( tightening._value,
+                                 _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+            }
 
-        // It works, it actually can tighten the bounds.
-        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        // {
-        //     inputQuery.tightenLowerBound( i, _tableau->getLowerBound( i ) );
-        //     inputQuery.tightenUpperBound( i, _tableau->getUpperBound( i ) );
-        // }
+            if ( tightening._type == Tightening::UB &&
+                 FloatUtils::lt( tightening._value,
+                                 _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+            }
+        }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -547,13 +511,14 @@ bool Engine::solveWithDeepPoly( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "DeepPoly done\n" );
 
+    _exitCode = Engine::SAT;
     return true;
 }
 
@@ -574,7 +539,26 @@ bool Engine::solveWithIntervalArithmetic( IQuery &inputQuery )
 
         // IntervalArithmetic
         _networkLevelReasoner->intervalArithmeticBoundPropagation();
-        extractBounds( inputQuery );
+
+        // Extract the bounds
+        List<Tightening> tightenings;
+        _networkLevelReasoner->getConstraintTightenings( tightenings );
+        for ( const auto &tightening : tightenings )
+        {
+            if ( tightening._type == Tightening::LB &&
+                 FloatUtils::gt( tightening._value,
+                                 _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+            }
+
+            if ( tightening._type == Tightening::UB &&
+                 FloatUtils::lt( tightening._value,
+                                 _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+            }
+        }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -594,12 +578,14 @@ bool Engine::solveWithIntervalArithmetic( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "IntervalArithmetic done\n" );
+
+    _exitCode = Engine::SAT;
 
     return true;
 }
@@ -621,7 +607,26 @@ bool Engine::solveWithSymbolic( IQuery &inputQuery )
 
         // Symbolic
         _networkLevelReasoner->symbolicBoundPropagation();
-        extractBounds( inputQuery );
+
+        // Extract the bounds
+        List<Tightening> tightenings;
+        _networkLevelReasoner->getConstraintTightenings( tightenings );
+        for ( auto &tightening : tightenings )
+        {
+            if ( tightening._type == Tightening::LB &&
+                 FloatUtils::gt( tightening._value,
+                                 _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+            }
+
+            if ( tightening._type == Tightening::UB &&
+                 FloatUtils::lt( tightening._value,
+                                 _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+            {
+                _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+            }
+        }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -641,12 +646,14 @@ bool Engine::solveWithSymbolic( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "Symbolic done\n" );
+
+    _exitCode = Engine::SAT;
 
     return true;
 }
@@ -675,39 +682,43 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
-
             if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             {
                 continue;
             }
 
+            // Extract the bounds
+            List<Tightening> tightenings;
+            _networkLevelReasoner->getConstraintTightenings( tightenings );
+            for ( const auto &tightening : tightenings )
+            {
+                if ( tightening._type == Tightening::LB &&
+                     FloatUtils::gt( tightening._value,
+                                     _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+                }
+
+                if ( tightening._type == Tightening::UB &&
+                     FloatUtils::lt( tightening._value,
+                                     _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+                }
+            }
             extractBounds( inputQuery );
-            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
-            if ( backPropagation.boundChecking(
+            if ( !backPropagation.boundChecking(
                      *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
+                if ( layerId != numberOfLayers - 1 )
+                    _isVerifiedBeforeOutputLayer = true;
+
                 throw InfeasibleQueryException();
             }
         }
 
-        // // TODO: fixed point iteration procedure;
-        // // Update the bounds for each neuron by fixed point iteration.
-        // // If there is no bound can be tightened, then terminate the algorithm.
-        FPP::FixedPointPropagation fixedPointPropagation( numberOfLayers - 1, backPropagation );
-        while ( fixedPointPropagation.iterate( *_networkLevelReasoner ) )
-        {
-            _networkLevelReasoner->deepPolyPropagationForOneLayer( numberOfLayers - 1 );
-            extractBounds( inputQuery );
-            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
-
-            if ( backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, numberOfLayers - 1 ) )
-            {
-                throw InfeasibleQueryException();
-            }
-        }
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
@@ -721,13 +732,14 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
 
+    _exitCode = Engine::SAT;
     return true;
 }
 
@@ -753,24 +765,43 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        for ( unsigned int layerId = 1; layerId < numberOfLayers; ++layerId )
         {
             // Interval propagate one layer
-            if ( layerId != 0 )
-                _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
-
+            _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
             if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             {
                 continue;
             }
 
+            // Extract the bounds
+            List<Tightening> tightenings;
+            _networkLevelReasoner->getConstraintTightenings( tightenings );
+            for ( const auto &tightening : tightenings )
+            {
+                if ( tightening._type == Tightening::LB &&
+                     FloatUtils::gt( tightening._value,
+                                     _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+                }
+
+                if ( tightening._type == Tightening::UB &&
+                     FloatUtils::lt( tightening._value,
+                                     _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+                }
+            }
             extractBounds( inputQuery );
-            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
-            if ( backPropagation.boundChecking(
+            if ( !backPropagation.boundChecking(
                      *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
+                if ( layerId != numberOfLayers - 1 )
+                    _isVerifiedBeforeOutputLayer = true;
+
                 throw InfeasibleQueryException();
             }
         }
@@ -787,12 +818,13 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "IntervalArithmetic Propagation with Backward Analysis done\n" );
+    _exitCode = Engine::SAT;
 
     return true;
 }
@@ -818,18 +850,43 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
-        for ( unsigned int layerId = 0; layerId < layerIndexToLayer.size(); ++layerId )
+        for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             // Symbolic propagation one layer
             _networkLevelReasoner->symbolicBoundPropagationForOneLayer( layerId );
+            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            {
+                continue;
+            }
 
+            // Extract the bounds
+            List<Tightening> tightenings;
+            _networkLevelReasoner->getConstraintTightenings( tightenings );
+            for ( const auto &tightening : tightenings )
+            {
+                if ( tightening._type == Tightening::LB &&
+                     FloatUtils::gt( tightening._value,
+                                     _preprocessedQuery->getLowerBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setLowerBound( tightening._variable, tightening._value );
+                }
+
+                if ( tightening._type == Tightening::UB &&
+                     FloatUtils::lt( tightening._value,
+                                     _preprocessedQuery->getUpperBound( tightening._variable ) ) )
+                {
+                    _preprocessedQuery->setUpperBound( tightening._variable, tightening._value );
+                }
+            }
             extractBounds( inputQuery );
-            _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
             // Backward analysis
-            if ( backPropagation.boundChecking(
+            if ( !backPropagation.boundChecking(
                      *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
             {
+                if ( layerId != numberOfLayers - 1 )
+                    _isVerifiedBeforeOutputLayer = true;
+
                 throw InfeasibleQueryException();
             }
         }
@@ -846,12 +903,14 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        printf( "unsat\n" );
+        // printf( "unsat\n" );
 
         return false;
     }
 
     ENGINE_LOG( "Symbolic Bound Propagation with Backward Analysis done\n" );
+
+    _exitCode = Engine::SAT;
 
     return true;
 }
@@ -1410,6 +1469,7 @@ void Engine::invokePreprocessor( const IQuery &inputQuery, bool preprocess )
 void Engine::printInputBounds( const IQuery &inputQuery ) const
 {
     printf( "Input bounds:\n" );
+    printf( "\tInput variables: %u\n", inputQuery.getNumInputVariables() );
     for ( unsigned i = 0; i < inputQuery.getNumInputVariables(); ++i )
     {
         unsigned variable = inputQuery.inputVariableByIndex( i );
@@ -4292,6 +4352,10 @@ unsigned Engine::getNumberOfLayers() const
 
 const NLR::NetworkLevelReasoner *Engine::getNetworkLevelReasoner() const
 {
-    _networkLevelReasoner->getLayerIndexToLayer();
     return _networkLevelReasoner;
+}
+
+const bool Engine::getIsVerifiedBeforeOutputLayer() const
+{
+    return _isVerifiedBeforeOutputLayer;
 }

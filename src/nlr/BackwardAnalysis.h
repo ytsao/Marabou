@@ -16,7 +16,6 @@
 #ifndef __BackwardAnalysis_h__
 #define __BackwardAnalysis_h__
 
-#include "AbstractSyntaxTree.h"
 #include "InputQuery.h"
 #include "Interval.h"
 #include "Layer.h"
@@ -59,43 +58,23 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline List<std::string> getOutputVariables()
-    {
-        return _outputVariables;
-    }
-
-    inline Map<unsigned int, Vector<Vector<std::string>>> getPostConditions()
+    inline Map<unsigned int, Vector<Vector<Vector<double>>>> getPostConditions()
     {
         return _postConditions;
     }
 
-    struct Node
-    {
-        Node();
-        Node( int _id, double _coefficient, std::string _term )
-        {
-            id = _id;
-            coefficient = _coefficient;
-            term = _term;
-        }
-        ~Node(){};
-
-        int id;
-        double coefficient;
-        std::string term;
-    };
-
-    void dump() const;
 
 private:
     unsigned int _numberOfOrConditions = 0;
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
-    List<std::string> _outputVariables;
-    Map<unsigned int, Vector<Vector<std::string>>> _postConditions;
+    Map<unsigned int, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
+                                                                       // from std::string to
+                                                                       // Vector<double>
+    Map<unsigned int, Vector<Vector<double>>> _biasVectors;
 
-    Map<std::string, Vector<Node>> _vars;
+    // Map<std::string, Vector<Node>> _vars;
 
     void _initPostConditions( const Query &inputQuery,
                               const NLR::NetworkLevelReasoner &_networkLevelReasoner,

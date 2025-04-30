@@ -51,6 +51,13 @@ Interval Interval::operator-( const Interval &other ) const
 
 Interval Interval::operator*( const Interval &other ) const
 {
+    // Test
+    // if others' ub is negative, then return 0;
+    // Suppose that other is always represented as variable.
+    if ( other._ub < 0 )
+        return Interval( 0, 0 );
+
+
     double products[4] = {
         _lb * other._lb,
         _lb * other._ub,

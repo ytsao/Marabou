@@ -186,7 +186,8 @@ void DeepPolyAnalysis::runForOneLayer( unsigned targetIndex )
 
     deepPolyStartForOneLayer = TimeUtils::sampleMicro();
 
-    NLR::Layer targetLayer = _layerOwner->getLayer( targetIndex );
+    // NLR::Layer targetLayer = _layerOwner->getLayer( targetIndex );
+    NLR::Layer *targetLayer = _layerOwner->getLayerIndexToLayer()[targetIndex];
 
     ASSERT( _deepPolyElements.exists( targetIndex ) );
     log( Stringf( "Running deeppoly analysis for layer %u...", targetIndex ) );
@@ -196,31 +197,31 @@ void DeepPolyAnalysis::runForOneLayer( unsigned targetIndex )
     // Extract updated bounds
     for ( unsigned j = 0; j < deepPolyElement->getSize(); ++j )
     {
-        if ( targetLayer.neuronEliminated( j ) )
+        if ( targetLayer->neuronEliminated( j ) )
             continue;
         double lb = deepPolyElement->getLowerBound( j );
-        if ( targetLayer.getLb( j ) < lb )
+        if ( targetLayer->getLb( j ) < lb )
         {
             log( Stringf( "Neuron %u_%u lower-bound updated from  %f to %f",
                           targetIndex,
                           j,
-                          targetLayer.getLb( j ),
+                          targetLayer->getLb( j ),
                           lb ) );
-            targetLayer.setLb( j, lb );
+            targetLayer->setLb( j, lb );
             _layerOwner->receiveTighterBound(
-                Tightening( targetLayer.neuronToVariable( j ), lb, Tightening::LB ) );
+                Tightening( targetLayer->neuronToVariable( j ), lb, Tightening::LB ) );
         }
         double ub = deepPolyElement->getUpperBound( j );
-        if ( targetLayer.getUb( j ) > ub )
+        if ( targetLayer->getUb( j ) > ub )
         {
             log( Stringf( "Neuron %u_%u upper-bound updated from  %f to %f",
                           targetIndex,
                           j,
-                          targetLayer.getUb( j ),
+                          targetLayer->getUb( j ),
                           ub ) );
-            targetLayer.setUb( j, ub );
+            targetLayer->setUb( j, ub );
             _layerOwner->receiveTighterBound(
-                Tightening( targetLayer.neuronToVariable( j ), ub, Tightening::UB ) );
+                Tightening( targetLayer->neuronToVariable( j ), ub, Tightening::UB ) );
         }
     }
     log( Stringf( "Running deeppoly analysis for layer %u - done", targetIndex ) );

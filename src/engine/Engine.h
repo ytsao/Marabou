@@ -27,7 +27,6 @@
 #include "DantzigsRule.h"
 #include "DegradationChecker.h"
 #include "DivideStrategy.h"
-#include "FixedPointPropagation.h"
 #include "GlobalConfiguration.h"
 #include "GurobiWrapper.h"
 #include "IEngine.h"
@@ -336,6 +335,11 @@ public:
     */
     const NLR::NetworkLevelReasoner *getNetworkLevelReasoner() const;
 
+    /*
+      Get if the network is verified before the output layer
+    */
+    const bool getIsVerifiedBeforeOutputLayer() const;
+
 private:
     enum BasisRestorationRequired {
         RESTORATION_NOT_NEEDED = 0,
@@ -572,6 +576,11 @@ private:
     unsigned _statisticsPrintingFrequency;
 
     LinearExpression _heuristicCost;
+
+    /*
+      If the verification result is confirmed before the output layer.
+    */
+    bool _isVerifiedBeforeOutputLayer;
 
     /*
       Perform a simplex step: compute the cost function, pick the
