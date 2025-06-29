@@ -24,11 +24,12 @@ BackPropagation::BackPropagation()
 
 BackPropagation::~BackPropagation()
 {
+    freeMemoryIfNeeded();
 }
 
 bool BackPropagation::boundChecking( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                                     const unsigned int layerId ) const
+                                     const unsigned int layerId )
 {
     /*
     Doing bound checking to check if the bounds can satisfy the post-conditions;
@@ -90,10 +91,17 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
     // The verification results are represented as "satisfying the post-conditions";
     // Thus, if one of the verification results is false, it means that "it cannot satify the
     // post-conditions, there is at least one counter-example";
+    bool result = false;
     if ( verificationResults.exists( false ) )
-        return true;
+        result = true;
 
-    return false;
+    return result;
+}
+
+void BackPropagation::freeMemoryIfNeeded()
+{
+    _postConditions.clear();
+    _biasVectors.clear();
 }
 
 void BackPropagation::build( const Query &inputQuery,
@@ -144,7 +152,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         {
             List<Equation> splitEquations = split.getEquations();
             Vector<Vector<double>> outputLayerPostCondition;
-            for ( auto &eq : splitEquations )
+            for ( Equation &eq : splitEquations )
             {
                 List<unsigned int> participatingVariables = eq.getListParticipatingVariables();
                 Vector<double> postCondition( numberOfOutputNeurons, 0 );
@@ -169,10 +177,10 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                     // equation/inequality.
                 }
 
-                outputLayerPostCondition.append( postCondition );
+                outputLayerPostCondition.append( std::move( postCondition ) );
             }
             // this disjunctive constraint is a post-condition;
-            _postConditions[_numberOfOrConditions].append( outputLayerPostCondition );
+            _postConditions[_numberOfOrConditions].append( std::move( outputLayerPostCondition ) );
             _biasVectors[_numberOfOrConditions].append( Vector<double>( 1, 0 ) );
             _numberOfOrConditions++;
         }
@@ -210,9 +218,9 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 // their storage moves all the terms to the left hand side of the
                 // equation/inequality.
             }
-            outputLayerPostCondition.append( postCondition );
+            outputLayerPostCondition.append( std::move( postCondition ) );
         }
-        _postConditions[_numberOfOrConditions].append( outputLayerPostCondition );
+        _postConditions[_numberOfOrConditions].append( std::move( outputLayerPostCondition ) );
         _biasVectors[_numberOfOrConditions].append( Vector<double>( 1, 0 ) );
     }
 
@@ -239,11 +247,13 @@ void BackPropagation::_generateNewPostConditions(
     Map<unsigned int, NLR::Layer *> _layerIndexToLayer =
         _networkLevelReasoner.getLayerIndexToLayer();
 
+    Vector<Vector<double>> newPostConditions;
+    Vector<double> newPostCondition;
+    Vector<double> newBiasVector;
     for ( unsigned int i = 0; i < _numberOfOrConditions + 1; ++i )
     {
         unsigned int countAddedPostConditions = 1; // It should be 1, because there is an onriginal
                                                    // post-condition in the output layer by default.
-        Vector<Vector<double>> theLastPostConditions = _postConditions[i][0];
 
         /*
          * We skip the output layer here, since we have already added the origin post-conditions in
@@ -268,7 +278,8 @@ void BackPropagation::_generateNewPostConditions(
             }
             else if ( layerType == NLR::Layer::Type::INPUT )
             {
-                _postConditions[i].insertHead( Vector<Vector<double>>() );
+                const Vector<Vector<double>> &theLastPostConditions = _postConditions[i][0];
+                _postConditions[i].insertHead( std::move( theLastPostConditions ) );
                 _biasVectors[i].insertHead( Vector<double>( 1, 0 ) );
                 continue;
             }
@@ -282,7 +293,8 @@ void BackPropagation::_generateNewPostConditions(
             }
             else if ( layerType == NLR::Layer::Type::RELU )
             {
-                _postConditions[i].insertHead( Vector<Vector<double>>() );
+                const Vector<Vector<double>> &theLastPostConditions = _postConditions[i][0];
+                _postConditions[i].insertHead( std::move( theLastPostConditions ) );
                 _biasVectors[i].insertHead( Vector<double>( 1, 0 ) );
                 continue;
             }
@@ -302,18 +314,22 @@ void BackPropagation::_generateNewPostConditions(
             {
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    Vector<Vector<double>> newPostConditions;
-                    Vector<double> newBiasVector;
+                    newPostConditions = Vector<Vector<double>>();
+                    newBiasVector = Vector<double>();
+
+                    const Vector<Vector<double>> &theLastPostConditions = _postConditions[i][0];
                     for ( auto &postCondition : theLastPostConditions )
                     {
-                        Vector<double> newPostCondition;
+                        newPostCondition = Vector<double>();
                         double bias = 0;
                         for ( unsigned int targetNeuronIndex = 0;
                               targetNeuronIndex < postCondition.size();
                               ++targetNeuronIndex )
                         {
+                            // if the coefficient of the target neuron is 0, we skip it.
                             if ( postCondition[targetNeuronIndex] == 0 )
                                 continue;
+
                             for ( const auto &sourceLayerPair : currentLayer->getSourceLayers() )
                             {
                                 unsigned int sourceLayerSize = sourceLayerPair.second;
@@ -334,33 +350,27 @@ void BackPropagation::_generateNewPostConditions(
                                     double weight = currentLayer->getWeight( sourceLayerPair.first,
                                                                              sourceNeuronIndex,
                                                                              targetNeuronIndex );
-                                    if ( weight != 0 )
-                                    {
-                                        newPostCondition[sourceNeuronIndex] +=
-                                            postCondition[targetNeuronIndex] * weight;
-                                    }
+                                    newPostCondition[sourceNeuronIndex] +=
+                                        postCondition[targetNeuronIndex] * weight;
                                 }
                             }
                             double tempBias = currentLayer->getBias( targetNeuronIndex );
-                            if ( tempBias != 0 )
-                            {
-                                bias += tempBias;
-                            }
+                            bias += tempBias;
                         }
 
                         // Add the new postCondition to the list of postConditions
-                        newPostConditions.append( newPostCondition );
+                        newPostConditions.append( std::move( newPostCondition ) );
                         newBiasVector.append( bias );
                     }
                     // Add the new post-condition to the list of post-conditions.
-                    _postConditions[i].insertHead( newPostConditions );
-                    _biasVectors[i].insertHead( newBiasVector );
+                    _postConditions[i].insertHead( std::move( newPostConditions ) );
+                    _biasVectors[i].insertHead( std::move( newBiasVector ) );
                     countAddedPostConditions++;
-                    theLastPostConditions = newPostConditions;
                 }
                 else
                 {
-                    _postConditions[i].insertHead( Vector<Vector<double>>() );
+                    const Vector<Vector<double>> &theLastPostConditions = _postConditions[i][0];
+                    _postConditions[i].insertHead( std::move( theLastPostConditions ) );
                     _biasVectors[i].insertHead( Vector<double>( 1, 0 ) );
                 }
                 continue;

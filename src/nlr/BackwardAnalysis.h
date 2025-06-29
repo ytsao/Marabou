@@ -36,7 +36,7 @@ public:
 
     bool boundChecking( const Query &inputQuery,
                         const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                        const unsigned int layerId ) const;
+                        const unsigned int layerId );
     void boundRefinement(); // TODO: maybe we need to use this to improve the bounds from DeepPoly &
                             // Interval
     void build( const Query &inputQuery,
@@ -69,6 +69,14 @@ private:
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
+
+    // key: OR condition index,
+    // value:
+    // 1. Vector<double> := the coefficients of the post-condition (1 post-condition)
+    // 2. Vector<Vector<double>> := the collection of the post-conditions in single layer (1+
+    // post-conditions)
+    // 3. Vector<Vector<Vector<double>>> := the collection of the post-conditions in all layers (1+
+    // post-conditions)
     Map<unsigned int, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
                                                                        // from std::string to
                                                                        // Vector<double>
@@ -83,6 +91,8 @@ private:
                           const NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void _generateNewPostConditions( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner );
+
+    void freeMemoryIfNeeded();
 };
 } // namespace BP
 #endif // __BackwardAnalysis_h__
