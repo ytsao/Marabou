@@ -33,6 +33,7 @@
 #include "VariableOutOfBoundDuringOptimizationException.h"
 #include "Vector.h"
 
+#include <malloc.h>
 #include <random>
 
 Engine::Engine()
@@ -673,22 +674,21 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // DeepPoly
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
+        List<Tightening> tightenings;
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
-            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            // if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            if ( !backPropagation.getHasPostConditions()[layerId] )
             {
                 continue;
             }
 
             // Extract the bounds
-            List<Tightening> tightenings;
             _networkLevelReasoner->getConstraintTightenings( tightenings );
             for ( const auto &tightening : tightenings )
             {
@@ -740,6 +740,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
     ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
 
     _exitCode = Engine::SAT;
+
     return true;
 }
 
@@ -759,8 +760,6 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // IntervalArithmetic
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
@@ -820,11 +819,13 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _exitCode = Engine::UNSAT;
         // printf( "unsat\n" );
 
+
         return false;
     }
 
     ENGINE_LOG( "IntervalArithmetic Propagation with Backward Analysis done\n" );
     _exitCode = Engine::SAT;
+
 
     return true;
 }
@@ -844,8 +845,6 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // Symbolic
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );

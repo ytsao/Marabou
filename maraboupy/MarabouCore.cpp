@@ -493,7 +493,7 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -544,7 +544,7 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -594,7 +594,7 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -648,7 +648,7 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -664,13 +664,13 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
-        }
+        // engine.extractBounds( inputQuery );
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] =
+        //         std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }
@@ -700,7 +700,7 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -715,15 +715,15 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
-        }
+        // engine.extractBounds( inputQuery );
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] =
+        //         std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        // }
 
-        retStats = *( engine.getStatistics() );
+        // retStats = *( engine.getStatistics() );
     }
     catch ( const MarabouError &e )
     {
@@ -749,7 +749,7 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -765,13 +765,13 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
 
         // Extract bounds
         resultString = exitCodeToString( engine.getExitCode() );
-        engine.extractBounds( inputQuery );
-        for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
-        {
-            // set lower bound and upper bound in tuple
-            ret[i] =
-                std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
-        }
+        // engine.extractBounds( inputQuery );
+        // for ( unsigned int i = 0; i < inputQuery.getNumberOfVariables(); ++i )
+        // {
+        //     // set lower bound and upper bound in tuple
+        //     ret[i] =
+        //         std::make_tuple( inputQuery.getLowerBound( i ), inputQuery.getUpperBound( i ) );
+        // }
 
         retStats = *( engine.getStatistics() );
     }

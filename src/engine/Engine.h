@@ -495,6 +495,7 @@ private:
       evaluation of topology-based bound tightening.
      */
     NLR::NetworkLevelReasoner *_networkLevelReasoner;
+    // std::unique_ptr<NLR::NetworkLevelReasoner> _networkLevelReasoner;
 
     /*
       Verbosity level:

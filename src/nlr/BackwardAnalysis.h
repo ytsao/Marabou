@@ -63,6 +63,11 @@ public:
         return _postConditions;
     }
 
+    inline std::vector<bool> getHasPostConditions()
+    {
+        return _hasPostConditions;
+    }
+
 
 private:
     unsigned int _numberOfOrConditions = 0;
@@ -81,6 +86,10 @@ private:
                                                                        // from std::string to
                                                                        // Vector<double>
     Map<unsigned int, Vector<Vector<double>>> _biasVectors;
+    std::vector<bool> _hasPostConditions; // Whether the post-conditions for each layer exist
+
+    // Vector<Interval> _variables; // The variables in the current layer, the size is the maximum
+    // size of the layer
 
     // Map<std::string, Vector<Node>> _vars;
 
