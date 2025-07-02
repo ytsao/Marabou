@@ -221,7 +221,22 @@ void Marabou::solveQuery()
     unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
     if ( _engine->processInputQuery( _inputQuery ) )
     {
-        _engine->solve( timeoutInSeconds );
+        // _engine->solve( timeoutInSeconds );
+        // String verificationStrategy = Options::get()->getString( Options::VERIFICATION_STRATEGY
+        // ); if ( verificationStrategy == "deeppoly-bfa" )
+        // {
+        //     _engine->solveWithDeepPolyBFA( _inputQuery );
+        // }
+        // else if ( verificationStrategy == "interval-bfa" )
+        // {
+        //     _engine->solveWithIntervalArithmeticBFA( _inputQuery );
+        // }
+        // else if ( verificationStrategy == "symbolic-bfa" )
+        // {
+        //     _engine->solveWithSymbolicBFA( _inputQuery );
+        // }
+
+        _engine->solveWithDeepPolyBFA( _inputQuery );
         if ( _engine->shouldProduceProofs() && _engine->getExitCode() == Engine::UNSAT )
             _engine->certifyUNSATCertificate();
     }

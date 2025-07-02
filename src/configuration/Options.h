@@ -158,7 +158,10 @@ public:
         SOI_INITIALIZATION_STRATEGY,
 
         // The procedure/solver for solving the LP
-        LP_SOLVER
+        LP_SOLVER,
+
+        // Invoke different solving strategies to veirfy the property
+        VERIFICATION_STRATEGY
     };
 
     /*

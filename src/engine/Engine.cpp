@@ -664,6 +664,8 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
     ENGINE_LOG( "solve by DeepPoly with Backward analysis." );
     struct timespec start = TimeUtils::sampleMicro();
 
+    std::cout << "solve by DeepPoly with backward analysis." << std::endl;
+
     try
     {
         invokePreprocessor( inputQuery, true );
@@ -677,10 +679,15 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         BP::BackPropagation backPropagation;
         backPropagation.build(
             *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+
+        std::cout << "generate additional postconditions." << std::endl;
+
         unsigned int numberOfLayers = getNumberOfLayers();
         List<Tightening> tightenings;
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
+            std::cout << "layerId: " << layerId << std::endl;
+
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
             // if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             if ( !backPropagation.getHasPostConditions()[layerId] )
@@ -715,10 +722,13 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;
 
+                backPropagation.freeMemoryIfNeeded();
+
                 throw InfeasibleQueryException();
             }
         }
 
+        backPropagation.freeMemoryIfNeeded();
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );

@@ -18,6 +18,7 @@
 #include "NetworkLevelReasoner.h"
 
 #include <float.h>
+#include <malloc.h>
 #include <memory>
 
 namespace BP {
@@ -42,43 +43,41 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
 
     */
     // 1.
+    std::cout << "bound checking at layer " << layerId << std::endl;
     const NLR::Layer *layer = _networkLevelReasoner.getLayer( layerId );
-    // // Vector<Interval> variables( layer->getSize(), Interval( -DBL_MAX, DBL_MAX ) );
-    // std::unique_ptr<Interval[]> variables( new Interval[layer->getSize()] ); // Use unique_ptr to
-    //                                                                          // manage memory
-    //                                                                          // automatically
-
-    Vector<Interval> variables = Vector<Interval>( layer->getSize(), Interval( 0, 0 ) );
-    for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
-    {
-        variables[neuronId].setLowerBound( layer->getLb( neuronId ) );
-        variables[neuronId].setUpperBound( layer->getUb( neuronId ) );
-    }
+    // _variables.clear();
+    // _variables = Vector<Interval>( layer->getSize(), Interval( 0, 0 ) ); // Initialize with 0 and
+    // 0 for ( unsigned int neuronId = 0; neuronId < layer->getSize(); ++neuronId )
+    // {
+    //     _variables[neuronId].setLowerBound( layer->getLb( neuronId ) );
+    //     _variables[neuronId].setUpperBound( layer->getUb( neuronId ) );
+    // }
 
     // 2.
-    // std::unique_ptr<bool[]> verificationResults(
-    //     new bool[_postConditions.size()] ); // Use unique_ptr to manage memory automatically
-    Vector<bool> verificationResults;
-    Interval coefficient = Interval( 0, 0 );
+    std::unique_ptr<bool[]> verificationResults(
+        new bool[_postConditions.size()] ); // Use unique_ptr to manage memory automatically
+    Interval result = Interval( 0, 0 );
+    Interval value = Interval( 0, 0 );
     for ( unsigned int orIndex = 0; orIndex < _postConditions.size(); ++orIndex )
     {
         bool andResult = false;
         for ( unsigned int andIndex = 0; andIndex < _postConditions[orIndex][layerId].size();
               ++andIndex )
         {
-            Interval result = Interval( 0, 0 );
+            result.reset();
             for ( unsigned int i = 0; i < _postConditions[orIndex][layerId][andIndex].size(); ++i )
             {
                 double coef = _postConditions[orIndex][layerId][andIndex][i];
-                coefficient.setLowerBound( coef );
-                coefficient.setUpperBound( coef );
-                if ( coef < 0.0 && variables[i].getUpperBound() < 0.0 )
+                if ( coef < 0.0 && layer->getUb( i ) < 0.0 )
                     continue;
                 else
-                    result = result + ( coefficient * variables[i] );
+                {
+                    value.setBounds( layer->getLb( i ), layer->getUb( i ) );
+                    result += ( value * coef );
+                }
             }
-            double tempBias = _biasVectors[orIndex][layerId][andIndex];
-            result = result + Interval( tempBias, tempBias );
+            double bias = _biasVectors[orIndex][layerId][andIndex];
+            result += bias;
 
             if ( result.getLowerBound() >= 0.0 )
                 andResult = true;
@@ -88,8 +87,7 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
                 break;
             }
         }
-        // verificationResults[orIndex] = andResult;
-        verificationResults.append( andResult );
+        verificationResults[orIndex] = andResult;
     }
 
     // return true: SAT
@@ -97,13 +95,13 @@ bool BackPropagation::boundChecking( const Query &inputQuery,
     // The verification results are represented as "satisfying the post-conditions";
     // Thus, if one of the verification results is false, it means that "it cannot satify the
     // post-conditions, there is at least one counter-example";
-    if ( verificationResults.exists( false ) )
-        return true;
-    // for ( unsigned int i = 0; i < _postConditions.size(); ++i )
-    // {
-    //     if ( !verificationResults[i] )
-    //         return true; // UNSAT
-    // }
+    // if ( verificationResults.exists( false ) )
+    //     return true;
+    for ( unsigned int i = 0; i < _postConditions.size(); ++i )
+    {
+        if ( !verificationResults[i] )
+            return true; // UNSAT
+    }
 
     return false;
 }
@@ -155,6 +153,10 @@ void BackPropagation::freeMemoryIfNeeded()
     // Step 3: Replace with empty maps to force capacity reduction
     _postConditions = Map<unsigned int, Vector<Vector<Vector<double>>>>();
     _biasVectors = Map<unsigned int, Vector<Vector<double>>>();
+
+#ifdef __linux__
+    malloc_trim( 0 ); // Attempt to release unused memory back to the system
+#endif
 }
 
 void BackPropagation::build( const Query &inputQuery,
@@ -164,14 +166,6 @@ void BackPropagation::build( const Query &inputQuery,
     _initPostConditions( inputQuery, _networkLevelReasoner, preprocessor );
     _generateNewPostConditions( inputQuery, _networkLevelReasoner );
     std::reverse( _hasPostConditions.begin(), _hasPostConditions.end() );
-    // create array of Interval objects to store the value later.
-    // _variables = Vector<Interval>( _networkLevelReasoner.getMaxLayerSize(),
-    //                                Interval( 0, 0 ) ); // Initialize with
-    //                                                    // 0 and 0
-    //                                                    // to represent all
-    //                                                    // possible values of
-    //                                                    // the neurons in the
-    //                                                    // network.
 }
 
 
@@ -192,7 +186,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
 
     // create the post-conditions
     // load given post-conditions that is defined in vnnlib/text file.
-    Vector<double> emptyBiasVector( 1, 0 );
+    const Vector<double> emptyBiasVector( 1, 0 );
     for ( const auto &disCon : inputQuery.getPiecewiseLinearConstraints() )
     {
         unsigned int numberOfParticipatingOutputDisjunctiveVariables = 0;
@@ -303,14 +297,14 @@ void BackPropagation::_generateNewPostConditions(
     int numLayersWithAdditionalPostConditions =
         Options::get()->getInt( Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
     unsigned int numberOfLayers = _networkLevelReasoner.getNumberOfLayers();
-    const Map<unsigned int, NLR::Layer *> _layerIndexToLayer =
-        _networkLevelReasoner.getLayerIndexToLayer();
+    // const Map<unsigned int, NLR::Layer *> _layerIndexToLayer =
+    //     _networkLevelReasoner.getLayerIndexToLayer();
 
     Vector<Vector<double>> newPostConditions;
     Vector<double> newPostCondition;
     Vector<double> newBiasVector;
-    Vector<Vector<double>> emptyPostConditions( 1, Vector<double>() );
-    Vector<double> emptyBiasVector( 1, 0 );
+    const Vector<Vector<double>> emptyPostConditions( 1, Vector<double>() );
+    const Vector<double> emptyBiasVector( 1, 0 );
     for ( unsigned int i = 0; i < _numberOfOrConditions + 1; ++i )
     {
         unsigned int countAddedPostConditions = 1; // It should be 1, because there is an onriginal
@@ -326,9 +320,9 @@ void BackPropagation::_generateNewPostConditions(
          */
         for ( int index = numberOfLayers - 1; index > 0; --index )
         {
-            NLR::Layer *currentLayer = _layerIndexToLayer[index];
-            // const NLR::Layer &currentLayer = _networkLevelReasoner.getLayer( index );
-            const NLR::Layer::Type layerType = currentLayer->getLayerType();
+            // NLR::Layer *currentLayer = _layerIndexToLayer[index];
+            const NLR::Layer &currentLayer = _networkLevelReasoner.getLayer( index );
+            const NLR::Layer::Type layerType = currentLayer.getLayerType();
 
             if ( layerType == NLR::Layer::Type::ABSOLUTE_VALUE )
             {
@@ -370,10 +364,10 @@ void BackPropagation::_generateNewPostConditions(
             else if ( layerType == NLR::Layer::Type::RELU )
             {
                 // It implies that removing the ReLU function from each neuron in the layer.
-                Vector<Vector<double>> theLastPostConditions = _postConditions[i][0];
-                Vector<double> theLastBiasVector = _biasVectors[i][0];
-                _postConditions[i].insertHead( theLastPostConditions );
-                _biasVectors[i].insertHead( theLastBiasVector );
+                const Vector<Vector<double>> &theLastPostConditions = _postConditions[i][0];
+                const Vector<double> &theLastBiasVector = _biasVectors[i][0];
+                _postConditions[i].insertHead( std::move( theLastPostConditions ) );
+                _biasVectors[i].insertHead( std::move( theLastBiasVector ) );
 
                 if ( i == 0 )
                 {
@@ -417,7 +411,7 @@ void BackPropagation::_generateNewPostConditions(
                             if ( postCondition[targetNeuronIndex] == 0 )
                                 continue;
 
-                            for ( const auto &sourceLayerPair : currentLayer->getSourceLayers() )
+                            for ( const auto &sourceLayerPair : currentLayer.getSourceLayers() )
                             {
                                 unsigned int sourceLayerSize = sourceLayerPair.second;
 
@@ -429,24 +423,24 @@ void BackPropagation::_generateNewPostConditions(
                                       sourceNeuronIndex < sourceLayerSize;
                                       ++sourceNeuronIndex )
                                 {
-                                    double weight = currentLayer->getWeight( sourceLayerPair.first,
-                                                                             sourceNeuronIndex,
-                                                                             targetNeuronIndex );
+                                    double weight = currentLayer.getWeight( sourceLayerPair.first,
+                                                                            sourceNeuronIndex,
+                                                                            targetNeuronIndex );
                                     newPostCondition[sourceNeuronIndex] +=
                                         postCondition[targetNeuronIndex] * weight;
                                 }
                             }
-                            double tempBias = currentLayer->getBias( targetNeuronIndex );
+                            double tempBias = currentLayer.getBias( targetNeuronIndex );
                             bias += tempBias;
                         }
 
                         // Add the new postCondition to the list of postConditions
-                        newPostConditions.append( newPostCondition );
-                        newBiasVector.append( bias );
+                        newPostConditions.append( std::move( newPostCondition ) );
+                        newBiasVector.append( std::move( bias ) );
                     }
                     // Add the new post-condition to the list of post-conditions.
-                    _postConditions[i].insertHead( newPostConditions );
-                    _biasVectors[i].insertHead( newBiasVector );
+                    _postConditions[i].insertHead( std::move( newPostConditions ) );
+                    _biasVectors[i].insertHead( std::move( newBiasVector ) );
                     countAddedPostConditions++;
 
                     if ( i == 0 )
@@ -454,8 +448,8 @@ void BackPropagation::_generateNewPostConditions(
                 }
                 else
                 {
-                    _postConditions[i].insertHead( emptyPostConditions );
-                    _biasVectors[i].insertHead( emptyBiasVector );
+                    _postConditions[i].insertHead( std::move( emptyPostConditions ) );
+                    _biasVectors[i].insertHead( std::move( emptyBiasVector ) );
 
                     if ( i == 0 )
                         _hasPostConditions.push_back( false );

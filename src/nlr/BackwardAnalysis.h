@@ -68,6 +68,8 @@ public:
         return _hasPostConditions;
     }
 
+    void freeMemoryIfNeeded();
+
 
 private:
     unsigned int _numberOfOrConditions = 0;
@@ -101,7 +103,7 @@ private:
     void _generateNewPostConditions( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner );
 
-    void freeMemoryIfNeeded();
+    // void freeMemoryIfNeeded();
 };
 } // namespace BP
 #endif // __BackwardAnalysis_h__
