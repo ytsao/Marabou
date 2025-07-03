@@ -664,8 +664,6 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
     ENGINE_LOG( "solve by DeepPoly with Backward analysis." );
     struct timespec start = TimeUtils::sampleMicro();
 
-    std::cout << "solve by DeepPoly with backward analysis." << std::endl;
-
     try
     {
         invokePreprocessor( inputQuery, true );
@@ -676,18 +674,14 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // DeepPoly
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
-
-        std::cout << "generate additional postconditions." << std::endl;
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
 
         unsigned int numberOfLayers = getNumberOfLayers();
         List<Tightening> tightenings;
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
-            std::cout << "layerId: " << layerId << std::endl;
-
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
             // if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
             if ( !backPropagation.getHasPostConditions()[layerId] )
@@ -716,13 +710,10 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;
-
-                backPropagation.freeMemoryIfNeeded();
 
                 throw InfeasibleQueryException();
             }
@@ -770,9 +761,9 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // IntervalArithmetic
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
         for ( unsigned int layerId = 1; layerId < numberOfLayers; ++layerId )
         {
@@ -805,8 +796,7 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;
@@ -855,9 +845,9 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // Symbolic
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
@@ -890,8 +880,7 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;

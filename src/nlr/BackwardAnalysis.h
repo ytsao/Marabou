@@ -34,8 +34,7 @@ public:
     BackPropagation();
     ~BackPropagation();
 
-    bool boundChecking( const Query &inputQuery,
-                        const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+    bool boundChecking( const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                         const unsigned int layerId );
     void boundRefinement(); // TODO: maybe we need to use this to improve the bounds from DeepPoly &
                             // Interval
@@ -58,7 +57,7 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline Map<unsigned int, Vector<Vector<Vector<double>>>> getPostConditions()
+    inline Map<unsigned int, Vector<Vector<double>>> getPostConditions()
     {
         return _postConditions;
     }
@@ -77,23 +76,18 @@ private:
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
 
-    // key: OR condition index,
+    // key: layer index,
     // value:
     // 1. Vector<double> := the coefficients of the post-condition (1 post-condition)
     // 2. Vector<Vector<double>> := the collection of the post-conditions in single layer (1+
-    // post-conditions)
-    // 3. Vector<Vector<Vector<double>>> := the collection of the post-conditions in all layers (1+
-    // post-conditions)
-    Map<unsigned int, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
-                                                                       // from std::string to
-                                                                       // Vector<double>
-    Map<unsigned int, Vector<Vector<double>>> _biasVectors;
+    // post-conditions);
+    // it can have multiple disjunctive conditions but only 1 conjunctive condition for each
+    // disjunctive clause.
+    Map<unsigned int, Vector<Vector<double>>> _postConditions; // Changing the expression
+                                                               // from std::string to
+                                                               // Vector<double>
+    Map<unsigned int, Vector<double>> _biasVectors;
     std::vector<bool> _hasPostConditions; // Whether the post-conditions for each layer exist
-
-    // Vector<Interval> _variables; // The variables in the current layer, the size is the maximum
-    // size of the layer
-
-    // Map<std::string, Vector<Node>> _vars;
 
     void _initPostConditions( const Query &inputQuery,
                               const NLR::NetworkLevelReasoner &_networkLevelReasoner,

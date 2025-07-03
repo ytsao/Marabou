@@ -131,15 +131,15 @@ int marabouMain( int argc, char **argv )
 #ifdef ENABLE_OPENBLAS
             openblas_set_num_threads( options->getInt( Options::NUM_BLAS_THREADS ) );
 #endif
-            for ( int i = 0; i < 50; ++i )
-            {
-                std::cout << "No. " << i << ":\n";
-                String property_file_path =
-                    Stringf( "vnnlib/DeepSRGR/0021/mnist_%d_local_property.vnnlib", i );
-                options->setString( Options::PROPERTY_FILE_PATH, property_file_path.ascii() );
-                Marabou().run();
-            }
-            // Marabou().run();
+            // for ( int i = 0; i < 50; ++i )
+            // {
+            //     std::cout << "No. " << i << ":\n";
+            //     String property_file_path =
+            //         Stringf( "vnnlib/DeepSRGR/0021/mnist_%d_local_property.vnnlib", i );
+            //     options->setString( Options::PROPERTY_FILE_PATH, property_file_path.ascii() );
+            //     Marabou().run();
+            // }
+            Marabou().run();
         }
     }
     catch ( const Error &e )
