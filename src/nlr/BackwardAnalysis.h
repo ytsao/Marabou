@@ -34,9 +34,8 @@ public:
     BackPropagation();
     ~BackPropagation();
 
-    bool boundChecking( const Query &inputQuery,
-                        const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                        const unsigned int layerId ) const;
+    bool boundChecking( const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+                        const unsigned int layerId );
     void boundRefinement(); // TODO: maybe we need to use this to improve the bounds from DeepPoly &
                             // Interval
     void build( const Query &inputQuery,
@@ -58,10 +57,17 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline Map<unsigned int, Vector<Vector<Vector<double>>>> getPostConditions()
+    inline Map<unsigned int, Vector<Vector<double>>> getPostConditions()
     {
         return _postConditions;
     }
+
+    inline std::vector<bool> getHasPostConditions()
+    {
+        return _hasPostConditions;
+    }
+
+    void freeMemoryIfNeeded();
 
 
 private:
@@ -69,12 +75,19 @@ private:
     unsigned int _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
-    Map<unsigned int, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
-                                                                       // from std::string to
-                                                                       // Vector<double>
-    Map<unsigned int, Vector<Vector<double>>> _biasVectors;
 
-    // Map<std::string, Vector<Node>> _vars;
+    // key: layer index,
+    // value:
+    // 1. Vector<double> := the coefficients of the post-condition (1 post-condition)
+    // 2. Vector<Vector<double>> := the collection of the post-conditions in single layer (1+
+    // post-conditions);
+    // it can have multiple disjunctive conditions but only 1 conjunctive condition for each
+    // disjunctive clause.
+    Map<unsigned int, Vector<Vector<double>>> _postConditions; // Changing the expression
+                                                               // from std::string to
+                                                               // Vector<double>
+    Map<unsigned int, Vector<double>> _biasVectors;
+    std::vector<bool> _hasPostConditions; // Whether the post-conditions for each layer exist
 
     void _initPostConditions( const Query &inputQuery,
                               const NLR::NetworkLevelReasoner &_networkLevelReasoner,
@@ -83,6 +96,8 @@ private:
                           const NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void _generateNewPostConditions( const Query &inputQuery,
                                      const NLR::NetworkLevelReasoner &_networkLevelReasoner );
+
+    // void freeMemoryIfNeeded();
 };
 } // namespace BP
 #endif // __BackwardAnalysis_h__

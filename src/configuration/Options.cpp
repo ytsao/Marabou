@@ -71,7 +71,7 @@ void Options::initializeDefaultValues()
     _intOptions[SEED] = 1;
     _intOptions[NUM_BLAS_THREADS] = 1;
     _intOptions[NUM_CONSTRAINTS_TO_REFINE_INC_LIN] = 30;
-    _intOptions[NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS] = 1;
+    _intOptions[NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS] = 10;
 
     /*
       Float options
@@ -101,6 +101,7 @@ void Options::initializeDefaultValues()
     _stringOptions[SOI_INITIALIZATION_STRATEGY] = "input-assignment";
     _stringOptions[LP_SOLVER] = gurobiEnabled() ? "gurobi" : "native";
     _stringOptions[SOFTMAX_BOUND_TYPE] = "lse";
+    _stringOptions[VERIFICATION_STRATEGY] = "deeppoly-bfa";
 }
 
 void Options::parseOptions( int argc, char **argv )

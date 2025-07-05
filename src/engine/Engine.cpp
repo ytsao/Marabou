@@ -33,6 +33,7 @@
 #include "VariableOutOfBoundDuringOptimizationException.h"
 #include "Vector.h"
 
+#include <malloc.h>
 #include <random>
 
 Engine::Engine()
@@ -673,22 +674,22 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // DeepPoly
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
+
         unsigned int numberOfLayers = getNumberOfLayers();
+        List<Tightening> tightenings;
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
-            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            // if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            if ( !backPropagation.getHasPostConditions()[layerId] )
             {
                 continue;
             }
 
             // Extract the bounds
-            List<Tightening> tightenings;
             _networkLevelReasoner->getConstraintTightenings( tightenings );
             for ( const auto &tightening : tightenings )
             {
@@ -709,8 +710,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;
@@ -719,6 +719,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             }
         }
 
+        backPropagation.freeMemoryIfNeeded();
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
@@ -740,6 +741,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
     ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
 
     _exitCode = Engine::SAT;
+
     return true;
 }
 
@@ -759,11 +761,9 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // IntervalArithmetic
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
         for ( unsigned int layerId = 1; layerId < numberOfLayers; ++layerId )
         {
@@ -796,8 +796,7 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;
@@ -820,11 +819,13 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         _exitCode = Engine::UNSAT;
         // printf( "unsat\n" );
 
+
         return false;
     }
 
     ENGINE_LOG( "IntervalArithmetic Propagation with Backward Analysis done\n" );
     _exitCode = Engine::SAT;
+
 
     return true;
 }
@@ -844,11 +845,9 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         _networkLevelReasoner->obtainCurrentBounds( *_preprocessedQuery );
 
         // Symbolic
-        const Map<unsigned int, NLR::Layer *> layerIndexToLayer =
-            _networkLevelReasoner->getLayerIndexToLayer();
+        std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build(
-            *( inputQuery.generateQuery() ), *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
         unsigned int numberOfLayers = getNumberOfLayers();
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
@@ -881,8 +880,7 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
-            if ( !backPropagation.boundChecking(
-                     *( inputQuery.generateQuery() ), *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
                     _isVerifiedBeforeOutputLayer = true;

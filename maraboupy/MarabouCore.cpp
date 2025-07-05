@@ -493,7 +493,7 @@ solveWithDeepPoly( InputQuery &inputQuery, MarabouOptions &options, std::string 
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -544,7 +544,7 @@ solveWithIntervalArithmetic( InputQuery &inputQuery,
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -594,7 +594,7 @@ solveWithSymbolic( InputQuery &inputQuery, MarabouOptions &options, std::string 
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -648,7 +648,7 @@ solveWithDeepPolyBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -700,7 +700,7 @@ solveWithIntervalArithmeticBFA( InputQuery &inputQuery,
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();
@@ -749,7 +749,7 @@ solveWithSymbolicBFA( InputQuery &inputQuery, MarabouOptions &options, std::stri
     bool isVerifiedBeforeOutputLayer = false;
     int output = -1;
     if ( redirect.length() > 0 )
-        redirectOutputToFile( redirect );
+        output = redirectOutputToFile( redirect );
     try
     {
         options.setOptions();

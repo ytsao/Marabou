@@ -241,7 +241,12 @@ void OptionParser::initialize()
             &( *_boolOptions )[Options::DO_NOT_MERGE_CONSECUTIVE_WEIGHTED_SUM_LAYERS] )
             ->default_value(
                 ( *_boolOptions )[Options::DO_NOT_MERGE_CONSECUTIVE_WEIGHTED_SUM_LAYERS] ),
-        "Do no merge consecutive weighted-sum layers." )
+        "Do no merge consecutive weighted-sum layers." )(
+        "verification-strategy",
+        boost::program_options::value<std::string>(
+            &( ( *_stringOptions )[Options::VERIFICATION_STRATEGY] ) )
+            ->default_value( ( *_stringOptions )[Options::VERIFICATION_STRATEGY] ),
+        "The verification strategy to use: deeppoly-bfa/" )
 #ifdef ENABLE_GUROBI
         ( "lp-solver",
           boost::program_options::value<std::string>( &( ( *_stringOptions )[Options::LP_SOLVER] ) )

@@ -28,9 +28,12 @@ public:
     Interval operator-() const; // unary minus, similar to __neg__ in Python.
     Interval operator-( const Interval &other ) const;
     Interval operator*( const Interval &other ) const;
+    Interval operator*( const double &value ) const;
     Interval &operator+=( const Interval &other );
+    Interval &operator+=( const double &value );
     Interval &operator-=( const Interval &other );
     Interval &operator*=( const Interval &other );
+    Interval &operator*=( const double &value );
 
     // overwrite the binary operators for Interval.
     bool operator<( const Interval &other ) const;
@@ -41,14 +44,26 @@ public:
     double getLowerBound() const;
     double getUpperBound() const;
 
-    inline void setLowerBound( double lb )
+    inline void setLowerBound( const double &lb )
     {
         _lb = lb;
     }
 
-    inline void setUpperBound( double ub )
+    inline void setUpperBound( const double &ub )
     {
         _ub = ub;
+    }
+
+    inline void setBounds( const double &lb, const double &ub )
+    {
+        _lb = lb;
+        _ub = ub;
+    }
+
+    inline void reset()
+    {
+        _lb = 0.0;
+        _ub = 0.0;
     }
 
 

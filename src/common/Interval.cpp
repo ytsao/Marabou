@@ -69,10 +69,29 @@ Interval Interval::operator*( const Interval &other ) const
     return Interval( lb, ub );
 }
 
+Interval Interval::operator*( const double &value ) const
+{
+    if ( value < 0 )
+    {
+        return Interval( _ub * value, _lb * value );
+    }
+    else
+    {
+        return Interval( _lb * value, _ub * value );
+    }
+}
+
 Interval &Interval::operator+=( const Interval &other )
 {
     _lb += other._lb;
     _ub += other._ub;
+    return *this;
+}
+
+Interval &Interval::operator+=( const double &value )
+{
+    _lb += value;
+    _ub += value;
     return *this;
 }
 
@@ -86,6 +105,22 @@ Interval &Interval::operator-=( const Interval &other )
 Interval &Interval::operator*=( const Interval &other )
 {
     *this = *this * other;
+    return *this;
+}
+
+Interval &Interval::operator*=( const double &value )
+{
+    if ( value < 0 )
+    {
+        std::swap( _lb, _ub );
+        _lb *= value;
+        _ub *= value;
+    }
+    else
+    {
+        _lb *= value;
+        _ub *= value;
+    }
     return *this;
 }
 
