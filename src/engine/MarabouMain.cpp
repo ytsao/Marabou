@@ -135,7 +135,7 @@ int marabouMain( int argc, char **argv )
             // {
             //     std::cout << "No. " << i << ":\n";
             //     String property_file_path =
-            //         Stringf( "vnnlib/DeepSRGR/0021/mnist_%d_local_property.vnnlib", i );
+            //         Stringf( "vnnlib/DeepSRGR/0037/mnist_%d_local_property.vnnlib", i );
             //     options->setString( Options::PROPERTY_FILE_PATH, property_file_path.ascii() );
             //     Marabou().run();
             // }

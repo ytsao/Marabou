@@ -262,6 +262,7 @@ void BackPropagation::_generateNewPostConditions(
                     const double theLastBias = _biasVectors[index][i];
                     _postConditions[index - 1].append( std::move( theLastPostConditions ) );
                     _biasVectors[index - 1].append( theLastBias );
+                    countAddedPostConditions++;
                 }
 
                 if ( i == 0 )
