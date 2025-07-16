@@ -676,15 +676,14 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         // DeepPoly
         std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner );
 
         unsigned int numberOfLayers = getNumberOfLayers();
         List<Tightening> tightenings;
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
-            // if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
-            if ( !backPropagation.getHasPostConditions()[layerId] )
+            if ( !backPropagation.getHasPostConditions().get( layerId ) )
             {
                 continue;
             }
@@ -719,7 +718,16 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             }
         }
 
-        backPropagation.freeMemoryIfNeeded();
+        // TODO: DeepPoly trick.
+        // If the initial bounds are not able to prove the query.
+        // We can add an auxiliary layer after the output layer.
+        // By checking its bounds which is computed by backsubstitution procedure as standard
+        // DeepPoly procedure.
+        if ( !backPropagation.boundRefinement( std::move( query ), *_networkLevelReasoner ) )
+        {
+            throw InfeasibleQueryException();
+        }
+
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
                                       TimeUtils::timePassed( start, end ) );
@@ -763,13 +771,14 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
         // IntervalArithmetic
         std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner );
         unsigned int numberOfLayers = getNumberOfLayers();
+
         for ( unsigned int layerId = 1; layerId < numberOfLayers; ++layerId )
         {
             // Interval propagate one layer
             _networkLevelReasoner->intervalArithmeticBoundPropagationForOneLayer( layerId );
-            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            if ( !backPropagation.getHasPostConditions().get( layerId ) )
             {
                 continue;
             }
@@ -794,6 +803,7 @@ bool Engine::solveWithIntervalArithmeticBFA( IQuery &inputQuery )
                 }
             }
             extractBounds( inputQuery );
+
 
             // Backward analysis
             if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
@@ -847,13 +857,14 @@ bool Engine::solveWithSymbolicBFA( IQuery &inputQuery )
         // Symbolic
         std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
-        backPropagation.build( *query, *_networkLevelReasoner, _preprocessor );
+        backPropagation.build( *query, *_networkLevelReasoner );
         unsigned int numberOfLayers = getNumberOfLayers();
+
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             // Symbolic propagation one layer
             _networkLevelReasoner->symbolicBoundPropagationForOneLayer( layerId );
-            if ( backPropagation.getPostConditions()[0][layerId].size() == 0 )
+            if ( !backPropagation.getHasPostConditions().get( layerId ) )
             {
                 continue;
             }

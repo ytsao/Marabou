@@ -48,6 +48,7 @@ public:
       Populate the NLR by specifying the network's topology.
     */
     void addLayer( unsigned layerIndex, Layer::Type type, unsigned layerSize );
+    void removeLayer( unsigned layerIndex );
     void addLayerDependency( unsigned sourceLayer, unsigned targetLayer );
     void computeSuccessorLayers();
     void setWeight( unsigned sourceLayer,
@@ -174,6 +175,14 @@ public:
       discovered network topology
     */
     void generateQuery( Query &query );
+    void generateQuery2( Query &query, const Layer &layer )
+    {
+        /*
+          Generate a query for the given layer, which is expected to
+          be a weighted sum layer.
+        */
+        generateQueryForLayer( query, layer );
+    }
 
     /*
       Given a ReLU Constraint, get the previous layer bias

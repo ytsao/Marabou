@@ -51,34 +51,24 @@ Interval Interval::operator-( const Interval &other ) const
 
 Interval Interval::operator*( const Interval &other ) const
 {
-    // Test
-    // if others' ub is negative, then return 0;
-    // Suppose that other is always represented as variable.
-    if ( other._ub < 0 )
-        return Interval( 0, 0 );
-
-
     double products[4] = {
         _lb * other._lb,
         _lb * other._ub,
         _ub * other._lb,
         _ub * other._ub,
     };
+
     double lb = *std::min_element( products, products + 4 );
     double ub = *std::max_element( products, products + 4 );
+
     return Interval( lb, ub );
 }
 
 Interval Interval::operator*( const double &value ) const
 {
-    if ( value < 0 )
-    {
-        return Interval( _ub * value, _lb * value );
-    }
-    else
-    {
-        return Interval( _lb * value, _ub * value );
-    }
+    Interval coef = Interval( value, value );
+
+    return *this * coef;
 }
 
 Interval &Interval::operator+=( const Interval &other )
@@ -110,17 +100,8 @@ Interval &Interval::operator*=( const Interval &other )
 
 Interval &Interval::operator*=( const double &value )
 {
-    if ( value < 0 )
-    {
-        std::swap( _lb, _ub );
-        _lb *= value;
-        _ub *= value;
-    }
-    else
-    {
-        _lb *= value;
-        _ub *= value;
-    }
+    Interval coef = Interval( value, value );
+    *this = *this * coef;
     return *this;
 }
 
