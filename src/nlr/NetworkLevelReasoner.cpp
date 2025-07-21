@@ -230,8 +230,6 @@ void NetworkLevelReasoner::deepPolyPropagationForOneLayer( unsigned targetIndex 
         _deepPolyAnalysis->runForOneLayer( targetIndex );
     else
     {
-        std::cout << "Creating DeepPolyElement for layer " << targetIndex << std::endl;
-
         // Create deeppoly element for the new layer;
         _deepPolyAnalysis->addNewDeepPolyElement( targetIndex );
 
