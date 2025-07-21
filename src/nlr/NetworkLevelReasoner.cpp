@@ -69,6 +69,11 @@ void NetworkLevelReasoner::addLayer( unsigned layerIndex, Layer::Type type, unsi
     _layerIndexToLayer[layerIndex] = layer;
 }
 
+void NetworkLevelReasoner::removeLayer( unsigned layerIndex )
+{
+    _deepPolyAnalysis->removeDeepPolyElement( layerIndex );
+}
+
 void NetworkLevelReasoner::addLayerDependency( unsigned sourceLayer, unsigned targetLayer )
 {
     _layerIndexToLayer[targetLayer]->addSourceLayer( sourceLayer,
@@ -220,7 +225,17 @@ void NetworkLevelReasoner::deepPolyPropagationForOneLayer( unsigned targetIndex 
 {
     if ( _deepPolyAnalysis == nullptr )
         _deepPolyAnalysis = std::unique_ptr<DeepPolyAnalysis>( new DeepPolyAnalysis( this ) );
-    _deepPolyAnalysis->runForOneLayer( targetIndex );
+
+    if ( _deepPolyAnalysis->isDeepPolyElementCreated( targetIndex ) )
+        _deepPolyAnalysis->runForOneLayer( targetIndex );
+    else
+    {
+        // Create deeppoly element for the new layer;
+        _deepPolyAnalysis->addNewDeepPolyElement( targetIndex );
+
+        // Then runForOneLayer
+        _deepPolyAnalysis->runForOneLayer( targetIndex );
+    }
 }
 
 void NetworkLevelReasoner::lpRelaxationPropagation()

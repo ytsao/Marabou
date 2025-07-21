@@ -221,7 +221,7 @@ void Marabou::solveQuery()
     unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
     if ( _engine->processInputQuery( _inputQuery ) )
     {
-        // _engine->solve( timeoutInSeconds );
+        _engine->solve( timeoutInSeconds );
         // String verificationStrategy = Options::get()->getString( Options::VERIFICATION_STRATEGY
         // ); if ( verificationStrategy == "deeppoly-bfa" )
         // {
@@ -236,7 +236,7 @@ void Marabou::solveQuery()
         //     _engine->solveWithSymbolicBFA( _inputQuery );
         // }
 
-        _engine->solveWithDeepPolyBFA( _inputQuery );
+        // _engine->solveWithDeepPolyBFA( _inputQuery );
         if ( _engine->shouldProduceProofs() && _engine->getExitCode() == Engine::UNSAT )
             _engine->certifyUNSATCertificate();
     }

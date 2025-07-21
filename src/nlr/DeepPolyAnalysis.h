@@ -32,7 +32,10 @@ public:
     ~DeepPolyAnalysis();
 
     void run();
-    void runForOneLayer( unsigned targetIndex ); // new added.
+    void runForOneLayer( unsigned targetIndex );           // new added.
+    bool isDeepPolyElementCreated( unsigned targetIndex ); // new added.
+    void removeDeepPolyElement( unsigned targetIndex );    // new added.
+    void addNewDeepPolyElement( unsigned targetIndex );    // new added.
 
 private:
     LayerOwner *_layerOwner;

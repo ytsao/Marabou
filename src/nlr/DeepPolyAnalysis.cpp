@@ -227,6 +227,27 @@ void DeepPolyAnalysis::runForOneLayer( unsigned targetIndex )
     log( Stringf( "Running deeppoly analysis for layer %u - done", targetIndex ) );
 }
 
+bool DeepPolyAnalysis::isDeepPolyElementCreated( unsigned targetIndex )
+{
+    return _deepPolyElements.exists( targetIndex );
+}
+
+void DeepPolyAnalysis::removeDeepPolyElement( unsigned targetIndex )
+{
+    if ( _deepPolyElements.exists( targetIndex ) )
+    {
+        delete _deepPolyElements[targetIndex];
+        _deepPolyElements.erase( targetIndex );
+    }
+}
+
+void DeepPolyAnalysis::addNewDeepPolyElement( unsigned targetIndex )
+{
+    Layer *layer = _layerOwner->getLayerIndexToLayer()[targetIndex];
+    DeepPolyElement *deepPolyElement = createDeepPolyElement( layer );
+    _deepPolyElements[targetIndex] = deepPolyElement;
+}
+
 void DeepPolyAnalysis::allocateMemory()
 {
     freeMemoryIfNeeded();
