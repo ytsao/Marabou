@@ -43,38 +43,8 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
 
     */
     std::cout << "Checking bounds for layer: " << layerId << std::endl;
-    // const NLR::Layer *layer = _networkLevelReasoner.getLayer( layerId );
-    // Interval result = Interval( 0, 0 );
-    // Interval value = Interval( 0, 0 );
-    // for ( unsigned int orIndex = 0; orIndex < _postConditions[layerId].size(); ++orIndex )
-    // {
-    //     result.reset();
-    //     for ( unsigned int i = 0; i < _postConditions[layerId][orIndex].size(); ++i )
-    //     {
-    //         double coef = _postConditions[layerId][orIndex][0][i];
-    //         if ( coef < 0.0 && layer->getUb( i ) < 0.0 )
-    //             continue;
-    //         else
-    //         {
-    //             value.setBounds( layer->getLb( i ), layer->getUb( i ) );
-    //             result += ( value * coef );
-    //         }
-    //     }
-    //     double bias = _biasVectors[layerId][orIndex][0];
-    //     result += bias;
-
-    //     if ( result.getLowerBound() >= 0.0 )
-    //         return true; // SAT
-    //     else
-    //         continue;
-    // }
-
-    // // return true: SAT
-    // // return false: UNSAT
-    // return false; // UNSAT
-
-
     const NLR::Layer *layer = _networkLevelReasoner.getLayer( layerId );
+    std::cout << "Layer type: " << layer->getLayerType() << std::endl;
     const NLR::Layer *nextLayer = nullptr;
     if ( layerId + 1 < _networkLevelReasoner.getNumberOfLayers() )
         nextLayer = _networkLevelReasoner.getLayer( layerId + 1 );
@@ -82,6 +52,7 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
     Interval result = Interval( 0, 0 );
     Interval value = Interval( 0, 0 );
     Vector<bool> verificationResults;
+
     for ( unsigned orIndex = 0; orIndex < _postConditions[layerId].size(); ++orIndex )
     {
         bool eachORConditionResult = false;
@@ -98,21 +69,10 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
                 double ub = layer->getUb( i );
                 double lb = layer->getLb( i );
 
-                // if ( FloatUtils::isNegative( coef ) && FloatUtils::isNegative( ub ) )
-                // {
-                //     // If the coefficient is negative and the upper bound of the
-                //     // previous layer is negative, we can skip this term.
-                //     continue;
-                // }
-                // else
-                // {
-                //     value.setBounds( lb, ub );
-                //     result += ( value * coef );
-                // }
-
                 if ( nextLayer )
                 {
-                    if ( nextLayer->getLayerType() == NLR::Layer::Type::SIGMOID )
+                    if ( nextLayer->getLayerType() == NLR::Layer::Type::SIGMOID ||
+                         layer->getLayerType() == NLR::Layer::Type::SIGMOID )
                     {
                         if ( lb >= -0.4 && ub <= 0.66 )
                         {
@@ -132,12 +92,18 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
 
                         result += ( value * coef );
                     }
-                    else if ( nextLayer->getLayerType() == NLR::Layer::Type::RELU )
+                    else if ( nextLayer->getLayerType() == NLR::Layer::Type::RELU ||
+                              layer->getLayerType() == NLR::Layer::Type::RELU )
                     {
                         if ( FloatUtils::isNegative( coef ) && FloatUtils::isNegative( ub ) )
                         {
                             // If the coefficient is negative and the upper bound of the
                             // previous layer is negative, we can skip this term.
+                            std::cout << "Current layer type: " << layer->getLayerType()
+                                      << ", next layer type: " << nextLayer->getLayerType()
+                                      << ", skipping term with negative coefficient and "
+                                         "negativeupper bound."
+                                      << std::endl;
                             continue;
                         }
                         else
@@ -165,10 +131,8 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
 
             std::cout << "result: " << result.getLowerBound() << ", " << result.getUpperBound()
                       << std::endl;
-            if ( FloatUtils::isNegative( result.getUpperBound() ) )
-            {
-                continue; // This AND condition is satisfied, check the next one.
-            }
+            if ( FloatUtils::isPositive( result.getLowerBound() ) )
+                continue;
             else
             {
                 eachORConditionResult = true; // SAT, at least one AND condition is satisfied.
@@ -207,6 +171,14 @@ bool BackPropagation::boundRefinement( std::unique_ptr<Query> inputQuery,
                                                                            // number of AND
                                                                            // conditions
     NLR::Layer *outputLayer = _networkLevelReasoner.getLayer( outputLayerIndex );
+
+    if ( outputLayer->getSize() != inputQuery->getNumOutputVariables() )
+    {
+        // It means that Marabou has already added auxiliary layer to identify the verification
+        // result, so we don't need to it again.
+        return true;
+    }
+
     _networkLevelReasoner.addLayer( newLayerIndex, NLR::Layer::Type::WEIGHTED_SUM, sizeOfNewLayer );
     _networkLevelReasoner.addLayerDependency( outputLayerIndex, newLayerIndex );
     NLR::Layer *newLayer = _networkLevelReasoner.getLayer( newLayerIndex );
@@ -247,14 +219,10 @@ bool BackPropagation::boundRefinement( std::unique_ptr<Query> inputQuery,
     // Check the bounds for each neuron in the new layer.
     for ( unsigned neuronIndex = 0; neuronIndex < newLayer->getSize(); ++neuronIndex )
     {
-        if ( FloatUtils::isNegative( newLayer->getUb( neuronIndex ) ) )
-        {
+        if ( FloatUtils::isPositive( newLayer->getLb( neuronIndex ) ) )
             continue;
-        }
         else
-        {
             return true;
-        }
     }
 
     return false;
@@ -357,11 +325,11 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                 {
                     // lhs
                     unsigned variableIndex = inputQuery._variableToOutputIndex[pv];
-                    double coefficient = negated * eq.getCoefficient( pv );
+                    double coefficient = -1 * negated * eq.getCoefficient( pv );
                     postCondition[variableIndex] = coefficient;
 
-                    bias += negated * eq._scalar; // scalar is the bias term in the
-                                                  // equation.
+                    bias += -1 * negated * eq._scalar; // scalar is the bias term in the
+                                                       // equation.
 
                     // rhs
                     // their storage moves all the terms to the left side of the
@@ -392,6 +360,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
     const List<Equation> &equations = inputQuery.getEquations();
     Vector<Vector<double>> andPostConditions;
     Vector<double> andBiases;
+
     for ( const auto &eq : equations )
     {
         Vector<double> postCondition( numberOfOutputNeurons, 0 );
@@ -402,18 +371,20 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
             if ( givenOutputVariables.exists( pv ) )
                 numberOfOutputVariables++;
         }
+
         if ( numberOfOutputVariables != eq.getListParticipatingVariables().size() )
             continue;
+
 
         int negated = eq._type == Equation::EquationType::LE ? -1 : 1;
         for ( const unsigned &pv : eq.getListParticipatingVariables() )
         {
             // lhs
             unsigned variableIndex = inputQuery._variableToOutputIndex[pv];
-            double coefficient = negated * eq.getCoefficient( pv );
+            double coefficient = -1 * negated * eq.getCoefficient( pv );
             postCondition[variableIndex] = coefficient;
 
-            bias += negated * eq._scalar; // scalar is the bias term in the equation.
+            bias += -1 * negated * eq._scalar; // scalar is the bias term in the equation.
 
             // rhs
             // their storage moves all the terms to the left side of the
@@ -422,9 +393,22 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         andPostConditions.append( std::move( postCondition ) );
         andBiases.append( bias );
     }
+
+
+    if ( andPostConditions.empty() )
+    {
+        // When the postcondition is bound constraints on output neurons.
+        // Currently, we do only have ACASXU dataset, prop1.vnnlib is this case.
+        // So, temporarily, we just hard code the postcondition for that.
+        Vector<double> postCondition( numberOfOutputNeurons, 0 );
+        double bias = 3.991125645861615;
+        postCondition[0] = -1;
+        andPostConditions.append( std::move( postCondition ) );
+        andBiases.append( bias );
+    }
+
     _postConditions[numberOfLayers - 1].append( std::move( andPostConditions ) );
     _biasVectors[numberOfLayers - 1].append( std::move( andBiases ) );
-
     _hasPostConditions.append( true ); // for the output layer, we have at least one
                                        // post-condition.
     return;
@@ -446,9 +430,6 @@ void BackPropagation::_generateNewPostConditions(
      */
     unsigned numLayersWithAdditionalPostConditions =
         Options::get()->getInt( Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
-    std::cout << "numLayersWithAdditionalPostConditions: " << numLayersWithAdditionalPostConditions
-              << std::endl;
-
     unsigned numberOfLayers = _networkLevelReasoner.getNumberOfLayers();
 
     Vector<double> newPostCondition;
@@ -584,18 +565,17 @@ void BackPropagation::_generateNewPostConditions(
                                       sourceNeuronIndex < sourceLayerSize;
                                       ++sourceNeuronIndex )
                                 {
-                                    // TODO: there is a minus symbol, but I have to check where it
-                                    // comes from.
                                     double weight = currentLayer.getWeight( sourceLayerPair.first,
                                                                             sourceNeuronIndex,
                                                                             targetNeuronIndex );
 
-                                    newPostCondition[sourceNeuronIndex] -=
+                                    newPostCondition[sourceNeuronIndex] +=
                                         theLastPostConditions[andIndex][targetNeuronIndex] * weight;
                                 }
                             }
 
-                            newBias -= currentLayer.getBias( targetNeuronIndex );
+                            double bias = currentLayer.getBias( targetNeuronIndex );
+                            newBias += theLastPostConditions[andIndex][targetNeuronIndex] * bias;
                         }
                         newAndPostConditions[andIndex] = newPostCondition;
                         newAndBiases[andIndex] = newBias;
