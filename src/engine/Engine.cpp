@@ -677,6 +677,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
         backPropagation.build( *query, *_networkLevelReasoner );
+        backPropagation.generate( *query, *_networkLevelReasoner );
 
         unsigned int numberOfLayers = getNumberOfLayers();
         List<Tightening> tightenings;
@@ -718,15 +719,39 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             }
         }
 
-        // TODO: DeepPoly trick.
-        // If the initial bounds are not able to prove the query.
-        // We can add an auxiliary layer after the output layer.
-        // By checking its bounds which is computed by backsubstitution procedure as standard
-        // DeepPoly procedure.
         if ( !backPropagation.boundRefinement( std::move( query ), *_networkLevelReasoner ) )
         {
             throw InfeasibleQueryException();
         }
+
+        // // Perform DeepPoly propagation for all layers
+        // _networkLevelReasoner->deepPolyPropagation();
+
+        // // Identify the output range
+        // std::cout << "Number of layers: " << numberOfLayers << std::endl;
+        // if ( !backPropagation.boundChecking( *_networkLevelReasoner, numberOfLayers - 1 ) )
+        // {
+        //     throw InfeasibleQueryException();
+        // }
+        // else if ( !backPropagation.boundRefinement( std::move( query ), *_networkLevelReasoner )
+        // )
+        // {
+        //     throw InfeasibleQueryException();
+        // }
+
+        // // Backward analysis starts if DeepPoly is failed.
+        // // 1. Generate the additional postconditions.
+        // backPropagation.generate( *query, *_networkLevelReasoner );
+
+        // // 2. Bound checking for each layer.
+        // for ( unsigned layerId = 0; layerId < numberOfLayers; ++layerId )
+        // {
+        //     if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
+        //     {
+        //         _isVerifiedBeforeOutputLayer = true;
+        //         throw InfeasibleQueryException();
+        //     }
+        // }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,

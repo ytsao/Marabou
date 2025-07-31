@@ -35,18 +35,23 @@ public:
     ~BackPropagation();
 
     bool boundChecking( const NLR::NetworkLevelReasoner &_networkLevelReasoner,
-                        const unsigned layerId );
+                        const unsigned layerId ); // Check the post-condition of the
+                                                  // layerId
     bool boundRefinement( std::unique_ptr<Query> inputQuery,
-                          NLR::NetworkLevelReasoner &_networkLevelReasoner ); // TODO: maybe we need
-                                                                              // to use this to
-                                                                              // improve the bounds
-                                                                              // from DeepPoly &
-                                                                              // Interval
+                          NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void build( const Query &inputQuery, const NLR::NetworkLevelReasoner &_networkLevelReasoner );
+
+    void generate( const Query &inputQuery,
+                   const NLR::NetworkLevelReasoner &_networkLevelReasoner );
 
     inline bool getIsActivationBeforeOutput()
     {
         return _isActivationBeforeOutput;
+    }
+
+    inline bool getIsAddingAuxiliaryLayer()
+    {
+        return _isAddingAuxiliaryLayer;
     }
 
     inline unsigned getNumberOfOrConditions()
@@ -59,7 +64,7 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline Map<unsigned, Vector<Vector<Vector<double>>>> getPostConditions()
+    inline Map<unsigned, Vector<Vector<Vector<Interval>>>> getPostConditions()
     {
         return _postConditions;
     }
@@ -74,6 +79,7 @@ private:
     unsigned _numberOfLinearLayers = 0;
     bool _isDisjunctivePostCondition = false;
     bool _isActivationBeforeOutput = false;
+    bool _isAddingAuxiliaryLayer = true;
 
     // key: layer index,
     // value:
@@ -82,14 +88,14 @@ private:
     // TODO: it can have multiple disjunctive conditions but only 1 conjunctive condition for each
     //       disjunctive clause.
     // 3. Vector<Vector<Vector<double>>> := the clause with OR operator.
-    Map<unsigned, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
-                                                                   // from std::string to
-                                                                   // Vector<double>
+    Map<unsigned, Vector<Vector<Vector<Interval>>>> _postConditions; // Changing the expression
+                                                                     // from std::string to
+                                                                     // Vector<double>
     // key: layer index,
     // value:
     // 1. Vector<double> := the bias for each expression with AND operators.
     // 2. Vector<Vector<double>> := the bias for each expression with OR operators.
-    Map<unsigned, Vector<Vector<double>>> _biasVectors;
+    Map<unsigned, Vector<Vector<Interval>>> _biasVectors;
     Vector<bool> _hasPostConditions; // Whether the post-conditions for each layer exist
 
     // Pair layer index, it is for dealing residual networks.

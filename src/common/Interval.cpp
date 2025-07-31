@@ -76,6 +76,15 @@ Interval &Interval::operator+=( const Interval &other )
     _lb += other._lb;
     _ub += other._ub;
     return *this;
+
+    // *this = this->join( other );
+    // return *this;
+
+    // double tmpLb = std::min( _lb, other._lb );
+    // double tmpUb = _ub + other._ub;
+    // _lb = std::min( tmpLb, tmpUb );
+    // _ub = std::max( tmpLb, tmpUb );
+    // return *this;
 }
 
 Interval &Interval::operator+=( const double &value )
@@ -123,6 +132,16 @@ bool Interval::operator>( const Interval &other ) const
 bool Interval::operator>=( const Interval &other ) const
 {
     return _lb >= other._ub;
+}
+
+Interval Interval::join( const Interval &other ) const
+{
+    return Interval( std::min( _lb, other._lb ), std::max( _ub, other._ub ) );
+}
+
+Interval Interval::meet( const Interval &other ) const
+{
+    return Interval( std::max( _lb, other._lb ), std::min( _ub, other._ub ) );
 }
 
 double Interval::getLowerBound() const

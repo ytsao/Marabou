@@ -61,13 +61,20 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
         {
             // Reset the result for each OR-AND condition
             result.reset();
+            std::cout << "Checking OR condition: " << orIndex << ", AND condition: " << andIndex
+                      << "Size: " << _postConditions[layerId][orIndex][andIndex].size()
+                      << std::endl;
             for ( unsigned i = 0; i < _postConditions[layerId][orIndex][andIndex].size(); ++i )
             {
-                double coef = _postConditions[layerId][orIndex][andIndex][i];
-                std::cout << "coef: " << coef << " lb: " << layer->getLb( i )
-                          << ", ub: " << layer->getUb( i ) << std::endl;
+                Interval coef = _postConditions[layerId][orIndex][andIndex][i];
+                std::cout << "coef: "
+                          << "[ " << coef.getLowerBound() << ", " << coef.getUpperBound() << " ]"
+                          << " lb: " << layer->getLb( i ) << ", ub: " << layer->getUb( i )
+                          << std::endl;
                 double ub = layer->getUb( i );
                 double lb = layer->getLb( i );
+                // value.setBounds( lb, ub );
+                // result += ( value * coef );
 
                 if ( nextLayer )
                 {
@@ -95,7 +102,9 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
                     else if ( nextLayer->getLayerType() == NLR::Layer::Type::RELU ||
                               layer->getLayerType() == NLR::Layer::Type::RELU )
                     {
-                        if ( FloatUtils::isNegative( coef ) && FloatUtils::isNegative( ub ) )
+                        // if ( FloatUtils::isNegative( coef.getUpperBound() ) &&
+                        //      FloatUtils::isNegative( ub ) )
+                        if ( FloatUtils::isNegative( ub ) )
                         {
                             // If the coefficient is negative and the upper bound of the
                             // previous layer is negative, we can skip this term.
@@ -126,7 +135,7 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
                     result += ( value * coef );
                 }
             }
-            double bias = _biasVectors[layerId][orIndex][andIndex];
+            Interval bias = _biasVectors[layerId][orIndex][andIndex];
             result += bias;
 
             std::cout << "result: " << result.getLowerBound() << ", " << result.getUpperBound()
@@ -176,6 +185,7 @@ bool BackPropagation::boundRefinement( std::unique_ptr<Query> inputQuery,
     {
         // It means that Marabou has already added auxiliary layer to identify the verification
         // result, so we don't need to it again.
+        _isAddingAuxiliaryLayer = false;
         return true;
     }
 
@@ -199,15 +209,15 @@ bool BackPropagation::boundRefinement( std::unique_ptr<Query> inputQuery,
             for ( unsigned i = 0; i < _postConditions[outputLayerIndex][orIndex][andIndex].size();
                   ++i )
             {
-                double coef = _postConditions[outputLayerIndex][orIndex][andIndex][i];
+                Interval coef = _postConditions[outputLayerIndex][orIndex][andIndex][i];
                 newLayer->setWeight(
                     outputLayerIndex,
                     outputLayer->variableToNeuron( inputQuery->outputVariableByIndex( i ) ),
                     newNeuronIndex,
-                    coef );
+                    coef.getLowerBound() );
             }
-            double bias = _biasVectors[outputLayerIndex][orIndex][andIndex];
-            newLayer->setBias( andIndex, bias );
+            Interval bias = _biasVectors[outputLayerIndex][orIndex][andIndex];
+            newLayer->setBias( andIndex, bias.getLowerBound() );
         }
     }
 
@@ -238,18 +248,18 @@ void BackPropagation::freeMemoryIfNeeded()
         {
             // Clear middle vectors
             mapEntry.second[i].clear();
-            mapEntry.second[i] = Vector<Vector<double>>();
+            mapEntry.second[i] = Vector<Vector<Interval>>();
         }
         // Clear outer vectors
         mapEntry.second.clear();
-        mapEntry.second = Vector<Vector<Vector<double>>>();
+        mapEntry.second = Vector<Vector<Vector<Interval>>>();
     }
 
     // Similar for bias vectors - clean from innermost to outermost
     for ( auto &mapEntry : _biasVectors )
     {
         mapEntry.second.clear();
-        mapEntry.second = Vector<Vector<double>>();
+        mapEntry.second = Vector<Vector<Interval>>();
     }
 
     // Step 2: Now clear the maps themselves
@@ -257,8 +267,8 @@ void BackPropagation::freeMemoryIfNeeded()
     _biasVectors.clear();
 
     // Step 3: Replace with empty maps to force capacity reduction
-    _postConditions = Map<unsigned int, Vector<Vector<Vector<double>>>>();
-    _biasVectors = Map<unsigned int, Vector<Vector<double>>>();
+    _postConditions = Map<unsigned int, Vector<Vector<Vector<Interval>>>>();
+    _biasVectors = Map<unsigned int, Vector<Vector<Interval>>>();
 
 #ifdef __linux__
     malloc_trim( 0 ); // Attempt to release unused memory back to the system
@@ -269,10 +279,16 @@ void BackPropagation::build( const Query &inputQuery,
                              const NLR::NetworkLevelReasoner &_networkLevelReasoner )
 {
     _initPostConditions( inputQuery, _networkLevelReasoner );
+    // _generateNewPostConditions( inputQuery, _networkLevelReasoner );
+    // std::reverse( _hasPostConditions.begin(), _hasPostConditions.end() );
+}
+
+void BackPropagation::generate( const Query &inputQuery,
+                                const NLR::NetworkLevelReasoner &_networkLevelReasoner )
+{
     _generateNewPostConditions( inputQuery, _networkLevelReasoner );
     std::reverse( _hasPostConditions.begin(), _hasPostConditions.end() );
 }
-
 
 void BackPropagation::_initPostConditions( const Query &inputQuery,
                                            const NLR::NetworkLevelReasoner &_networkLevelReasoner )
@@ -288,7 +304,7 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
 
     // create the post-conditions
     // load given post-conditions that is defined in vnnlib/text file.
-    const double emptyBias = 0.0;
+    const Interval emptyBias = Interval();
     for ( const auto &disCon : inputQuery.getPiecewiseLinearConstraints() )
     {
         unsigned numberOfParticipatingOutputDisjunctiveVariables = 0;
@@ -305,12 +321,12 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         for ( const PiecewiseLinearCaseSplit &split : splits )
         {
             const List<Equation> &equations = split.getEquations();
-            Vector<Vector<double>> andPostConditions;
-            Vector<double> andBiases;
+            Vector<Vector<Interval>> andPostConditions;
+            Vector<Interval> andBiases;
             for ( const Equation &eq : equations )
             {
-                Vector<double> postCondition( numberOfOutputNeurons, 0 );
-                double bias = emptyBias;
+                Vector<Interval> postCondition( numberOfOutputNeurons, Interval() );
+                Interval bias = Interval();
                 unsigned numberOfOutputVariables = 0;
                 for ( const unsigned &pv : eq.getListParticipatingVariables() )
                 {
@@ -326,10 +342,14 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
                     // lhs
                     unsigned variableIndex = inputQuery._variableToOutputIndex[pv];
                     double coefficient = -1 * negated * eq.getCoefficient( pv );
-                    postCondition[variableIndex] = coefficient;
+                    if ( FloatUtils::isNegative( coefficient ) )
+                        postCondition[variableIndex] = Interval( coefficient, coefficient );
+                    else if ( FloatUtils::isPositive( coefficient ) )
+                        postCondition[variableIndex] = Interval( coefficient, coefficient );
 
-                    bias += -1 * negated * eq._scalar; // scalar is the bias term in the
-                                                       // equation.
+                    bias = bias + Interval( -1 * negated * eq._scalar,
+                                            -1 * negated * eq._scalar ); // scalar is the bias term
+                                                                         // in the equation.
 
                     // rhs
                     // their storage moves all the terms to the left side of the
@@ -358,13 +378,13 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
     // The post-conditions do not exist OR operator.
     _numberOfOrConditions = 1; // We have at least one post-condition in the output layer.
     const List<Equation> &equations = inputQuery.getEquations();
-    Vector<Vector<double>> andPostConditions;
-    Vector<double> andBiases;
+    Vector<Vector<Interval>> andPostConditions;
+    Vector<Interval> andBiases;
 
     for ( const auto &eq : equations )
     {
-        Vector<double> postCondition( numberOfOutputNeurons, 0 );
-        double bias = emptyBias;
+        Vector<Interval> postCondition( numberOfOutputNeurons, Interval() );
+        Interval bias = emptyBias;
         unsigned numberOfOutputVariables = 0;
         for ( const unsigned &pv : eq.getListParticipatingVariables() )
         {
@@ -382,9 +402,14 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
             // lhs
             unsigned variableIndex = inputQuery._variableToOutputIndex[pv];
             double coefficient = -1 * negated * eq.getCoefficient( pv );
-            postCondition[variableIndex] = coefficient;
+            if ( FloatUtils::isNegative( coefficient ) )
+                postCondition[variableIndex] = Interval( coefficient, coefficient );
+            else if ( FloatUtils::isPositive( coefficient ) )
+                postCondition[variableIndex] = Interval( coefficient, coefficient );
 
-            bias += -1 * negated * eq._scalar; // scalar is the bias term in the equation.
+            bias = bias + Interval( -1 * negated * eq._scalar,
+                                    -1 * negated * eq._scalar ); // scalar is the bias term in the
+                                                                 // equation.
 
             // rhs
             // their storage moves all the terms to the left side of the
@@ -400,9 +425,9 @@ void BackPropagation::_initPostConditions( const Query &inputQuery,
         // When the postcondition is bound constraints on output neurons.
         // Currently, we do only have ACASXU dataset, prop1.vnnlib is this case.
         // So, temporarily, we just hard code the postcondition for that.
-        Vector<double> postCondition( numberOfOutputNeurons, 0 );
-        double bias = 3.991125645861615;
-        postCondition[0] = -1;
+        Vector<Interval> postCondition( numberOfOutputNeurons, Interval() );
+        Interval bias = Interval( 3.991125645861615, 3.991125645861615 );
+        postCondition[0] = Interval( -1, -1 );
         andPostConditions.append( std::move( postCondition ) );
         andBiases.append( bias );
     }
@@ -432,10 +457,14 @@ void BackPropagation::_generateNewPostConditions(
         Options::get()->getInt( Options::IntOptions::NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS );
     unsigned numberOfLayers = _networkLevelReasoner.getNumberOfLayers();
 
-    Vector<double> newPostCondition;
-    double newBias;
-    const Vector<double> emptyPostConditions( 1, 0.0 );
-    const double emptyBias = 0.0;
+    std::cout << "Number of layers: " << numberOfLayers
+              << ", numLayersWithAdditionalPostConditions: "
+              << numLayersWithAdditionalPostConditions << std::endl;
+
+    Vector<Interval> newPostCondition;
+    Interval newBias;
+    const Vector<Interval> emptyPostConditions( 1, Interval( 0.0, 0.0 ) );
+    const Interval emptyBias = Interval( 0.0, 0.0 );
     for ( unsigned orIndex = 0; orIndex < _numberOfOrConditions; ++orIndex )
     {
         unsigned countAddedPostConditions = 1; // It should be 1, because there is an onriginal
@@ -451,8 +480,11 @@ void BackPropagation::_generateNewPostConditions(
          */
         for ( unsigned layerIndex = numberOfLayers - 1; layerIndex > 0; --layerIndex )
         {
-            const NLR::Layer &currentLayer = _networkLevelReasoner.getLayer( layerIndex );
-            const NLR::Layer::Type layerType = currentLayer.getLayerType();
+            std::cout << "Processing layer: " << layerIndex << ", orIndex: " << orIndex
+                      << std::endl;
+
+            const NLR::Layer *currentLayer = _networkLevelReasoner.getLayer( layerIndex );
+            const NLR::Layer::Type layerType = currentLayer->getLayerType();
 
             if ( layerType == NLR::Layer::Type::ABSOLUTE_VALUE )
             {
@@ -481,10 +513,46 @@ void BackPropagation::_generateNewPostConditions(
                 // It implies that removing the ReLU function from each neuron in the layer.
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
-                    const auto &theLastBias = _biasVectors[layerIndex][orIndex];
-                    _postConditions[layerIndex - 1].append( std::move( theLastPostConditions ) );
+                    auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
+                    auto &theLastBias = _biasVectors[layerIndex][orIndex];
+                    // _postConditions[layerIndex - 1].append( std::move( theLastPostConditions ) );
                     _biasVectors[layerIndex - 1].append( std::move( theLastBias ) );
+                    //
+
+                    // Corrected version:
+                    Vector<Vector<Interval>> newAndPostConditions( theLastPostConditions.size(),
+                                                                   Vector<Interval>() );
+                    for ( unsigned andIndex = 0; andIndex < theLastPostConditions.size();
+                          ++andIndex )
+                    {
+                        newPostCondition.clear();
+                        newPostCondition = Vector<Interval>( theLastPostConditions[andIndex].size(),
+                                                             Interval( 0.0, 0.0 ) );
+                        newBias = theLastBias[andIndex];
+                        for ( unsigned targetNeuronIndex = 0;
+                              targetNeuronIndex < theLastPostConditions[andIndex].size();
+                              ++targetNeuronIndex )
+                        {
+                            // In here, we know that number of neurons in the source layer is equal
+                            // to the number of neurons in the target layer.
+                            if ( FloatUtils::isNegative(
+                                     theLastPostConditions[andIndex][targetNeuronIndex]
+                                         .getLowerBound() ) )
+                            {
+                                newPostCondition[targetNeuronIndex] =
+                                    theLastPostConditions[andIndex][targetNeuronIndex];
+                            }
+                            else if ( FloatUtils::isPositive(
+                                          theLastPostConditions[andIndex][targetNeuronIndex]
+                                              .getUpperBound() ) )
+                            {
+                                continue; // remove the term from the generated postcondition.
+                            }
+                        }
+                        newAndPostConditions[andIndex] = newPostCondition;
+                    }
+                    _postConditions[layerIndex - 1].append( std::move( newAndPostConditions ) );
+
                     countAddedPostConditions++;
                 }
 
@@ -503,8 +571,8 @@ void BackPropagation::_generateNewPostConditions(
                 // It implies that removing the ReLU function from each neuron in the layer.
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
-                    const auto &theLastBias = _biasVectors[layerIndex][orIndex];
+                    auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
+                    auto &theLastBias = _biasVectors[layerIndex][orIndex];
                     _postConditions[layerIndex - 1].append( std::move( theLastPostConditions ) );
                     _biasVectors[layerIndex - 1].append( std::move( theLastBias ) );
                     countAddedPostConditions++;
@@ -532,26 +600,33 @@ void BackPropagation::_generateNewPostConditions(
             {
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
-                    const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
-                    const auto &theLastBias = _biasVectors[layerIndex][orIndex];
-                    Vector<Vector<double>> newAndPostConditions( theLastPostConditions.size(),
-                                                                 Vector<double>() );
-                    Vector<double> newAndBiases( theLastPostConditions.size(), emptyBias );
+                    auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
+                    auto &theLastBias = _biasVectors[layerIndex][orIndex];
+                    Vector<Vector<Interval>> newAndPostConditions( theLastPostConditions.size(),
+                                                                   Vector<Interval>() );
+                    Vector<Interval> newAndBiases( theLastPostConditions.size(), emptyBias );
                     for ( unsigned andIndex = 0; andIndex < theLastPostConditions.size();
                           ++andIndex )
                     {
                         newPostCondition.clear();
-                        newPostCondition = Vector<double>();
+                        newPostCondition = Vector<Interval>();
                         newBias = theLastBias[andIndex];
                         for ( unsigned targetNeuronIndex = 0;
                               targetNeuronIndex < theLastPostConditions[andIndex].size();
                               ++targetNeuronIndex )
                         {
                             // if the coefficient of the target neuron is 0, we skip it.
-                            if ( theLastPostConditions[andIndex][targetNeuronIndex] == 0 )
+                            if ( theLastPostConditions[andIndex][targetNeuronIndex].isZero() )
                                 continue;
 
-                            for ( const auto &sourceLayerPair : currentLayer.getSourceLayers() )
+                            // double currentLayerTargetUb = currentLayer->getUb( targetNeuronIndex
+                            // ); double currentLayerTargetLb = currentLayer->getLb(
+                            // targetNeuronIndex );
+
+                            // if ( FloatUtils::isNegative( currentLayerTargetUb ) )
+                            //     continue; // skip the negative neuron.
+
+                            for ( const auto &sourceLayerPair : currentLayer->getSourceLayers() )
                             {
                                 unsigned sourceLayerSize = sourceLayerPair.second;
 
@@ -559,23 +634,58 @@ void BackPropagation::_generateNewPostConditions(
                                 // TODO: this implementation cannot handle "residual network"
                                 // yet. detect if there is a residual block.
                                 if ( newPostCondition.size() == 0 )
-                                    newPostCondition = Vector<double>( sourceLayerSize, 0.0 );
+                                    newPostCondition =
+                                        Vector<Interval>( sourceLayerSize, Interval( 0.0, 0.0 ) );
 
                                 for ( unsigned sourceNeuronIndex = 0;
                                       sourceNeuronIndex < sourceLayerSize;
                                       ++sourceNeuronIndex )
                                 {
-                                    double weight = currentLayer.getWeight( sourceLayerPair.first,
-                                                                            sourceNeuronIndex,
-                                                                            targetNeuronIndex );
+                                    double weight = currentLayer->getWeight( sourceLayerPair.first,
+                                                                             sourceNeuronIndex,
+                                                                             targetNeuronIndex );
+
+                                    // // Activated neuron;
+                                    // if ( FloatUtils::isPositive( currentLayerTargetLb ) )
+                                    // {
+                                    //     newPostCondition[sourceNeuronIndex] +=
+                                    //         theLastPostConditions[andIndex][targetNeuronIndex] *
+                                    //         weight;
+                                    // }
+                                    // // Unstable neuron;
+                                    // if ( FloatUtils::isNegative( currentLayerTargetLb ) &&
+                                    //      FloatUtils::isPositive( currentLayerTargetUb ) )
+                                    // {
+                                    //     // activation
+                                    //     Interval activatedCoef =
+                                    //         theLastPostConditions[andIndex][targetNeuronIndex] *
+                                    //         weight;
+                                    //     if ( FloatUtils::isPositive(
+                                    //              activatedCoef.getLowerBound() ) )
+                                    //     {
+                                    //         newPostCondition[sourceNeuronIndex].setUpperBound(
+                                    //             newPostCondition[sourceNeuronIndex]
+                                    //                 .getUpperBound() +
+                                    //             activatedCoef.getUpperBound() );
+                                    //     }
+                                    //     if ( FloatUtils::isNegative(
+                                    //              activatedCoef.getUpperBound() ) )
+                                    //     {
+                                    //         newPostCondition[sourceNeuronIndex].setLowerBound(
+                                    //             newPostCondition[sourceNeuronIndex]
+                                    //                 .getLowerBound() +
+                                    //             activatedCoef.getLowerBound() );
+                                    //     }
+                                    // }
 
                                     newPostCondition[sourceNeuronIndex] +=
                                         theLastPostConditions[andIndex][targetNeuronIndex] * weight;
                                 }
                             }
 
-                            double bias = currentLayer.getBias( targetNeuronIndex );
-                            newBias += theLastPostConditions[andIndex][targetNeuronIndex] * bias;
+                            double bias = currentLayer->getBias( targetNeuronIndex );
+                            newBias = newBias +
+                                      ( theLastPostConditions[andIndex][targetNeuronIndex] * bias );
                         }
                         newAndPostConditions[andIndex] = newPostCondition;
                         newAndBiases[andIndex] = newBias;

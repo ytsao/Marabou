@@ -16,6 +16,8 @@
 #ifndef __Interval_h__
 #define __Interval_h__
 
+#include "FloatUtils.h"
+
 class Interval
 {
 public:
@@ -41,6 +43,10 @@ public:
     bool operator>( const Interval &other ) const;
     bool operator>=( const Interval &other ) const;
 
+    // Lattice operations
+    Interval join( const Interval &other ) const;
+    Interval meet( const Interval &other ) const;
+
     double getLowerBound() const;
     double getUpperBound() const;
 
@@ -64,6 +70,11 @@ public:
     {
         _lb = 0.0;
         _ub = 0.0;
+    }
+
+    inline bool isZero() const
+    {
+        return FloatUtils::isZero( _lb ) && FloatUtils::isZero( _ub );
     }
 
 
