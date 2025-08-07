@@ -71,7 +71,7 @@ void Options::initializeDefaultValues()
     _intOptions[SEED] = 1;
     _intOptions[NUM_BLAS_THREADS] = 1;
     _intOptions[NUM_CONSTRAINTS_TO_REFINE_INC_LIN] = 30;
-    _intOptions[NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS] = 10;
+    _intOptions[NUM_LAYERS_WITH_ADDITIONAL_POST_CONDITIONS] = 1;
 
     /*
       Float options
@@ -93,7 +93,7 @@ void Options::initializeDefaultValues()
     _stringOptions[SPLITTING_STRATEGY] = "auto";
     _stringOptions[SNC_SPLITTING_STRATEGY] = "auto";
     _stringOptions[SYMBOLIC_BOUND_TIGHTENING_TYPE] = "deeppoly";
-    _stringOptions[MILP_SOLVER_BOUND_TIGHTENING_TYPE] = "none";
+    _stringOptions[MILP_SOLVER_BOUND_TIGHTENING_TYPE] = "backward-converge";
     _stringOptions[QUERY_DUMP_FILE] = "";
     _stringOptions[IMPORT_ASSIGNMENT_FILE_PATH] = "assignment.txt";
     _stringOptions[EXPORT_ASSIGNMENT_FILE_PATH] = "assignment.txt";

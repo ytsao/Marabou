@@ -89,6 +89,9 @@ private:
     bool _cutoffInUse;
     double _cutoffValue;
 
+    std::atomic_bool _isUpdatedBounds; // Flag to indicate if bounds were updated in this
+                                       // thread
+
     void addInputLayerToLpRelaxation( GurobiWrapper &gurobi, const Layer *layer );
 
     void

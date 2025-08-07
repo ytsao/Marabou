@@ -63,6 +63,7 @@ void IterativePropagator::optimizeBoundsWithIterativePropagation(
     std::vector<boost::thread> threads( numberOfWorkers );
     std::mutex mtx;
     std::atomic_bool infeasible( false );
+    std::atomic_bool isUpdatedBounds( false );
 
     double currentLb;
     double currentUb;
@@ -189,7 +190,8 @@ void IterativePropagator::optimizeBoundsWithIterativePropagation(
                                          std::ref( tighterBoundCounter ),
                                          std::ref( signChanges ),
                                          std::ref( cutoffs ),
-                                         &lastFixedNeuronThisIteration );
+                                         &lastFixedNeuronThisIteration,
+                                         std::ref( isUpdatedBounds ) );
 
                 threads[solverToIndex[freeSolver]] =
                     boost::thread( tightenSingleVariableBounds, argument );

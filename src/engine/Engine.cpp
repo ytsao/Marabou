@@ -677,7 +677,6 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         std::unique_ptr<Query> query( inputQuery.generateQuery() );
         BP::BackPropagation backPropagation;
         backPropagation.build( *query, *_networkLevelReasoner );
-        backPropagation.generate( *query, *_networkLevelReasoner );
 
         unsigned int numberOfLayers = getNumberOfLayers();
         List<Tightening> tightenings;
@@ -724,34 +723,18 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             throw InfeasibleQueryException();
         }
 
-        // // Perform DeepPoly propagation for all layers
-        // _networkLevelReasoner->deepPolyPropagation();
+        backPropagation.generate( *query, *_networkLevelReasoner );
+        for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+              layerId >= 0;
+              --layerId )
+        {
+            if ( !backPropagation.getHasPostConditions().get( layerId ) )
+            {
+                _isVerifiedBeforeOutputLayer = true;
+                throw InfeasibleQueryException();
+            }
+        }
 
-        // // Identify the output range
-        // std::cout << "Number of layers: " << numberOfLayers << std::endl;
-        // if ( !backPropagation.boundChecking( *_networkLevelReasoner, numberOfLayers - 1 ) )
-        // {
-        //     throw InfeasibleQueryException();
-        // }
-        // else if ( !backPropagation.boundRefinement( std::move( query ), *_networkLevelReasoner )
-        // )
-        // {
-        //     throw InfeasibleQueryException();
-        // }
-
-        // // Backward analysis starts if DeepPoly is failed.
-        // // 1. Generate the additional postconditions.
-        // backPropagation.generate( *query, *_networkLevelReasoner );
-
-        // // 2. Bound checking for each layer.
-        // for ( unsigned layerId = 0; layerId < numberOfLayers; ++layerId )
-        // {
-        //     if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
-        //     {
-        //         _isVerifiedBeforeOutputLayer = true;
-        //         throw InfeasibleQueryException();
-        //     }
-        // }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -766,7 +749,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
                                       TimeUtils::timePassed( start, end ) );
 
         _exitCode = Engine::UNSAT;
-        // printf( "unsat\n" );
+        printf( "unsat\n" );
 
         return false;
     }
@@ -774,6 +757,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
     ENGINE_LOG( "DeepPoly with Backward Analysis done\n" );
 
     _exitCode = Engine::SAT;
+    printf( "sat\n" );
 
     return true;
 }
@@ -1898,6 +1882,10 @@ void Engine::initializeNetworkLevelReasoning()
             _networkLevelReasoner->dumpTopology( false );
             std::cout << std::endl;
         }
+    }
+    else
+    {
+        std::cout << "No network-level reasoning available for this query." << std::endl;
     }
 }
 

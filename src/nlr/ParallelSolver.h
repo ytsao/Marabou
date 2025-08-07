@@ -56,7 +56,8 @@ public:
                         std::atomic_uint &signChanges,
                         std::atomic_uint &cutoffs,
                         bool skipTightenLb,
-                        bool skipTightenUb )
+                        bool skipTightenUb,
+                        std::atomic_bool &isUpdatedBounds )
             : _gurobi( gurobi )
             , _layer( layer )
             , _layers( layers )
@@ -75,6 +76,7 @@ public:
             , _skipTightenLb( skipTightenLb )
             , _skipTightenUb( skipTightenUb )
             , _lastFixedNeuron( NULL )
+            , _isUpdatedBounds( isUpdatedBounds )
         {
         }
 
@@ -93,7 +95,8 @@ public:
                         std::atomic_uint &signChanges,
                         std::atomic_uint &cutoffs,
                         bool skipTightenLb,
-                        bool skipTightenUb )
+                        bool skipTightenUb,
+                        std::atomic_bool &isUpdatedBounds )
             : _gurobi( gurobi )
             , _layer( layer )
             , _layers( NULL )
@@ -112,6 +115,7 @@ public:
             , _skipTightenLb( skipTightenLb )
             , _skipTightenUb( skipTightenUb )
             , _lastFixedNeuron( NULL )
+            , _isUpdatedBounds( isUpdatedBounds )
         {
         }
 
@@ -129,7 +133,8 @@ public:
                         std::atomic_uint &tighterBoundCounter,
                         std::atomic_uint &signChanges,
                         std::atomic_uint &cutoffs,
-                        NeuronIndex *lastFixedNeuron )
+                        NeuronIndex *lastFixedNeuron,
+                        std::atomic_bool &isUpdatedBounds )
             : _gurobi( gurobi )
             , _layer( layer )
             , _layers( NULL )
@@ -146,6 +151,7 @@ public:
             , _signChanges( signChanges )
             , _cutoffs( cutoffs )
             , _lastFixedNeuron( lastFixedNeuron )
+            , _isUpdatedBounds( isUpdatedBounds )
         {
         }
 
@@ -160,7 +166,8 @@ public:
                         unsigned lastIndexOfRelaxation,
                         unsigned targetIndex,
                         boost::thread *threads,
-                        const Map<GurobiWrapper *, unsigned> *solverToIndex )
+                        const Map<GurobiWrapper *, unsigned> *solverToIndex,
+                        std::atomic_bool &isUpdatedBounds )
             : _layer( layer )
             , _layers( layers )
             , _freeSolvers( freeSolvers )
@@ -173,6 +180,7 @@ public:
             , _targetIndex( targetIndex )
             , _threads( threads )
             , _solverToIndex( solverToIndex )
+            , _isUpdatedBounds( isUpdatedBounds )
         {
         }
 
@@ -198,6 +206,8 @@ public:
         unsigned _targetIndex;
         boost::thread *_threads;
         const Map<GurobiWrapper *, unsigned> *_solverToIndex;
+        std::atomic_bool &_isUpdatedBounds; // Flag to indicate if bounds were updated in
+                                            // this thread
     };
 
     /*

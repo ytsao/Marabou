@@ -42,9 +42,7 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
     Iterate through the set of post-conditions with the set of Interval objects.
 
     */
-    std::cout << "Checking bounds for layer: " << layerId << std::endl;
     const NLR::Layer *layer = _networkLevelReasoner.getLayer( layerId );
-    std::cout << "Layer type: " << layer->getLayerType() << std::endl;
     const NLR::Layer *nextLayer = nullptr;
     if ( layerId + 1 < _networkLevelReasoner.getNumberOfLayers() )
         nextLayer = _networkLevelReasoner.getLayer( layerId + 1 );
@@ -61,16 +59,9 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
         {
             // Reset the result for each OR-AND condition
             result.reset();
-            std::cout << "Checking OR condition: " << orIndex << ", AND condition: " << andIndex
-                      << "Size: " << _postConditions[layerId][orIndex][andIndex].size()
-                      << std::endl;
             for ( unsigned i = 0; i < _postConditions[layerId][orIndex][andIndex].size(); ++i )
             {
                 Interval coef = _postConditions[layerId][orIndex][andIndex][i];
-                std::cout << "coef: "
-                          << "[ " << coef.getLowerBound() << ", " << coef.getUpperBound() << " ]"
-                          << " lb: " << layer->getLb( i ) << ", ub: " << layer->getUb( i )
-                          << std::endl;
                 double ub = layer->getUb( i );
                 double lb = layer->getLb( i );
                 // value.setBounds( lb, ub );
@@ -108,11 +99,6 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
                         {
                             // If the coefficient is negative and the upper bound of the
                             // previous layer is negative, we can skip this term.
-                            std::cout << "Current layer type: " << layer->getLayerType()
-                                      << ", next layer type: " << nextLayer->getLayerType()
-                                      << ", skipping term with negative coefficient and "
-                                         "negativeupper bound."
-                                      << std::endl;
                             continue;
                         }
                         else
@@ -478,7 +464,8 @@ void BackPropagation::_generateNewPostConditions(
          * When we meet the activation layer, we just skip it to add the empty post-condition
          * into _postConditions.
          */
-        for ( unsigned layerIndex = numberOfLayers - 1; layerIndex > 0; --layerIndex )
+        for ( unsigned layerIndex = numberOfLayers - 1 - _isAddingAuxiliaryLayer; layerIndex > 0;
+              --layerIndex )
         {
             std::cout << "Processing layer: " << layerIndex << ", orIndex: " << orIndex
                       << std::endl;
@@ -535,14 +522,14 @@ void BackPropagation::_generateNewPostConditions(
                         {
                             // In here, we know that number of neurons in the source layer is equal
                             // to the number of neurons in the target layer.
-                            if ( FloatUtils::isNegative(
+                            if ( FloatUtils::isPositive(
                                      theLastPostConditions[andIndex][targetNeuronIndex]
                                          .getLowerBound() ) )
                             {
                                 newPostCondition[targetNeuronIndex] =
                                     theLastPostConditions[andIndex][targetNeuronIndex];
                             }
-                            else if ( FloatUtils::isPositive(
+                            else if ( FloatUtils::isNegative(
                                           theLastPostConditions[andIndex][targetNeuronIndex]
                                               .getUpperBound() ) )
                             {

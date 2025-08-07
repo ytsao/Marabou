@@ -209,8 +209,10 @@ public:
     bool gurobiEnabled() const
     {
 #ifdef ENABLE_GUROBI
+        std::cout << "Gurobi is enabled" << std::endl;
         return true;
 #else
+        std::cout << "Gurobi is not enabled" << std::endl;
         return false;
 #endif
     }

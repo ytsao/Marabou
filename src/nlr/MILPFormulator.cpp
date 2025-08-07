@@ -168,6 +168,7 @@ void MILPFormulator::optimizeBoundsWithMILPEncoding( const Map<unsigned, Layer *
     boost::thread *threads = new boost::thread[numberOfWorkers];
     std::mutex mtx;
     std::atomic_bool infeasible( false );
+    std::atomic_bool isUpdatedBounds( false );
 
     std::atomic_uint tighterBoundCounter( 0 );
     std::atomic_uint signChanges( 0 );
@@ -190,7 +191,8 @@ void MILPFormulator::optimizeBoundsWithMILPEncoding( const Map<unsigned, Layer *
                                  layer->getLayerIndex(),
                                  currentLayer.first,
                                  threads,
-                                 &solverToIndex );
+                                 &solverToIndex,
+                                 std::ref( isUpdatedBounds ) );
 
         // optimize every neuron of layer
         optimizeBoundsOfNeuronsWithMILPEncoding( argument );
@@ -235,6 +237,7 @@ void MILPFormulator::optimizeBoundsOfOneLayerWithMILPEncoding( const Map<unsigne
     boost::thread *threads = new boost::thread[numberOfWorkers];
     std::mutex mtx;
     std::atomic_bool infeasible( false );
+    std::atomic_bool isUpdatedBounds( false );
 
     std::atomic_uint tighterBoundCounter( 0 );
     std::atomic_uint signChanges( 0 );
@@ -255,7 +258,8 @@ void MILPFormulator::optimizeBoundsOfOneLayerWithMILPEncoding( const Map<unsigne
                              layers.size() - 1,
                              targetIndex,
                              threads,
-                             &solverToIndex );
+                             &solverToIndex,
+                             std::ref( isUpdatedBounds ) );
 
     // optimize every neuron of layer
     optimizeBoundsOfNeuronsWithMILPEncoding( argument );
@@ -295,6 +299,7 @@ void MILPFormulator::optimizeBoundsOfNeuronsWithMILPEncoding( ThreadArgument &ar
     SolverQueue &freeSolvers = args._freeSolvers;
     std::mutex &mtx = args._mtx;
     std::atomic_bool &infeasible = args._infeasible;
+    std::atomic_bool &isUpdatedBounds = args._isUpdatedBounds;
     std::atomic_uint &tighterBoundCounter = args._tighterBoundCounter;
     std::atomic_uint &signChanges = args._signChanges;
     std::atomic_uint &cutoffs = args._cutoffs;
@@ -400,7 +405,8 @@ void MILPFormulator::optimizeBoundsOfNeuronsWithMILPEncoding( ThreadArgument &ar
                                  std::ref( signChanges ),
                                  std::ref( cutoffs ),
                                  skipTightenLb,
-                                 skipTightenUb );
+                                 skipTightenUb,
+                                 std::ref( isUpdatedBounds ) );
 
         if ( numberOfWorkers == 1 )
             tightenSingleVariableBoundsWithMILPEncoding( argument );

@@ -65,10 +65,15 @@ void Marabou::run()
     struct timespec end = TimeUtils::sampleMicro();
 
     unsigned long long totalElapsed = TimeUtils::timePassed( start, end );
-    displayResults( totalElapsed );
 
-    if ( Options::get()->getBool( Options::EXPORT_ASSIGNMENT ) )
-        exportAssignment();
+    String verificationStrategy = Options::get()->getString( Options::VERIFICATION_STRATEGY );
+    if ( verificationStrategy == "marabou" )
+    {
+        displayResults( totalElapsed );
+
+        if ( Options::get()->getBool( Options::EXPORT_ASSIGNMENT ) )
+            exportAssignment();
+    }
 }
 
 void Marabou::prepareQuery()
@@ -219,27 +224,27 @@ void Marabou::solveQuery()
 
     struct timespec start = TimeUtils::sampleMicro();
     unsigned timeoutInSeconds = Options::get()->getInt( Options::TIMEOUT );
-    if ( _engine->processInputQuery( _inputQuery ) )
+    String verificationStrategy = Options::get()->getString( Options::VERIFICATION_STRATEGY );
+    if ( verificationStrategy == "deeppoly-bfa" )
     {
-        _engine->solve( timeoutInSeconds );
-        // String verificationStrategy = Options::get()->getString( Options::VERIFICATION_STRATEGY
-        // ); if ( verificationStrategy == "deeppoly-bfa" )
-        // {
-        //     _engine->solveWithDeepPolyBFA( _inputQuery );
-        // }
-        // else if ( verificationStrategy == "interval-bfa" )
-        // {
-        //     _engine->solveWithIntervalArithmeticBFA( _inputQuery );
-        // }
-        // else if ( verificationStrategy == "symbolic-bfa" )
-        // {
-        //     _engine->solveWithSymbolicBFA( _inputQuery );
-        // }
-
-        // _engine->solveWithDeepPolyBFA( _inputQuery );
-        if ( _engine->shouldProduceProofs() && _engine->getExitCode() == Engine::UNSAT )
-            _engine->certifyUNSATCertificate();
+        _engine->solveWithDeepPolyBFA( _inputQuery );
     }
+    else if ( verificationStrategy == "interval-bfa" )
+    {
+        _engine->solveWithIntervalArithmeticBFA( _inputQuery );
+    }
+    else if ( verificationStrategy == "symbolic-bfa" )
+    {
+        _engine->solveWithSymbolicBFA( _inputQuery );
+    }
+    else if ( verificationStrategy == "marabou" )
+    {
+        if ( _engine->processInputQuery( _inputQuery ) )
+            _engine->solve( timeoutInSeconds );
+    }
+
+    if ( _engine->shouldProduceProofs() && _engine->getExitCode() == Engine::UNSAT )
+        _engine->certifyUNSATCertificate();
 
     if ( _engine->getExitCode() == Engine::UNKNOWN )
     {
@@ -260,7 +265,7 @@ void Marabou::solveQuery()
 
     // TODO: update the variable assignment using NLR if possible and double-check that all the
     // constraints are indeed satisfied.
-    if ( _engine->getExitCode() == Engine::SAT )
+    if ( _engine->getExitCode() == Engine::SAT && verificationStrategy == "marabou" )
         _engine->extractSolution( _inputQuery );
 }
 
