@@ -51,6 +51,8 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
     Interval value = Interval( 0, 0 );
     Vector<bool> verificationResults;
 
+    std::cout << "Bound checking at layer: " << layerId << std::endl;
+
     for ( unsigned orIndex = 0; orIndex < _postConditions[layerId].size(); ++orIndex )
     {
         bool eachORConditionResult = false;
@@ -467,9 +469,6 @@ void BackPropagation::_generateNewPostConditions(
         for ( unsigned layerIndex = numberOfLayers - 1 - _isAddingAuxiliaryLayer; layerIndex > 0;
               --layerIndex )
         {
-            std::cout << "Processing layer: " << layerIndex << ", orIndex: " << orIndex
-                      << std::endl;
-
             const NLR::Layer *currentLayer = _networkLevelReasoner.getLayer( layerIndex );
             const NLR::Layer::Type layerType = currentLayer->getLayerType();
 
@@ -606,12 +605,11 @@ void BackPropagation::_generateNewPostConditions(
                             if ( theLastPostConditions[andIndex][targetNeuronIndex].isZero() )
                                 continue;
 
-                            // double currentLayerTargetUb = currentLayer->getUb( targetNeuronIndex
-                            // ); double currentLayerTargetLb = currentLayer->getLb(
-                            // targetNeuronIndex );
+                            double currentLayerTargetUb = currentLayer->getUb( targetNeuronIndex );
+                            double currentLayerTargetLb = currentLayer->getLb( targetNeuronIndex );
 
-                            // if ( FloatUtils::isNegative( currentLayerTargetUb ) )
-                            //     continue; // skip the negative neuron.
+                            if ( FloatUtils::isNegative( currentLayerTargetUb ) )
+                                continue; // skip the negative neuron.
 
                             for ( const auto &sourceLayerPair : currentLayer->getSourceLayers() )
                             {
@@ -632,38 +630,38 @@ void BackPropagation::_generateNewPostConditions(
                                                                              sourceNeuronIndex,
                                                                              targetNeuronIndex );
 
-                                    // // Activated neuron;
-                                    // if ( FloatUtils::isPositive( currentLayerTargetLb ) )
-                                    // {
-                                    //     newPostCondition[sourceNeuronIndex] +=
-                                    //         theLastPostConditions[andIndex][targetNeuronIndex] *
-                                    //         weight;
-                                    // }
-                                    // // Unstable neuron;
-                                    // if ( FloatUtils::isNegative( currentLayerTargetLb ) &&
-                                    //      FloatUtils::isPositive( currentLayerTargetUb ) )
-                                    // {
-                                    //     // activation
-                                    //     Interval activatedCoef =
-                                    //         theLastPostConditions[andIndex][targetNeuronIndex] *
-                                    //         weight;
-                                    //     if ( FloatUtils::isPositive(
-                                    //              activatedCoef.getLowerBound() ) )
-                                    //     {
-                                    //         newPostCondition[sourceNeuronIndex].setUpperBound(
-                                    //             newPostCondition[sourceNeuronIndex]
-                                    //                 .getUpperBound() +
-                                    //             activatedCoef.getUpperBound() );
-                                    //     }
-                                    //     if ( FloatUtils::isNegative(
-                                    //              activatedCoef.getUpperBound() ) )
-                                    //     {
-                                    //         newPostCondition[sourceNeuronIndex].setLowerBound(
-                                    //             newPostCondition[sourceNeuronIndex]
-                                    //                 .getLowerBound() +
-                                    //             activatedCoef.getLowerBound() );
-                                    //     }
-                                    // }
+                                    // Activated neuron;
+                                    if ( FloatUtils::isPositive( currentLayerTargetLb ) )
+                                    {
+                                        newPostCondition[sourceNeuronIndex] +=
+                                            theLastPostConditions[andIndex][targetNeuronIndex] *
+                                            weight;
+                                    }
+                                    // Unstable neuron;
+                                    if ( FloatUtils::isNegative( currentLayerTargetLb ) &&
+                                         FloatUtils::isPositive( currentLayerTargetUb ) )
+                                    {
+                                        // activation
+                                        Interval activatedCoef =
+                                            theLastPostConditions[andIndex][targetNeuronIndex] *
+                                            weight;
+                                        if ( FloatUtils::isPositive(
+                                                 activatedCoef.getLowerBound() ) )
+                                        {
+                                            newPostCondition[sourceNeuronIndex].setUpperBound(
+                                                newPostCondition[sourceNeuronIndex]
+                                                    .getUpperBound() +
+                                                activatedCoef.getUpperBound() );
+                                        }
+                                        if ( FloatUtils::isNegative(
+                                                 activatedCoef.getUpperBound() ) )
+                                        {
+                                            newPostCondition[sourceNeuronIndex].setLowerBound(
+                                                newPostCondition[sourceNeuronIndex]
+                                                    .getLowerBound() +
+                                                activatedCoef.getLowerBound() );
+                                        }
+                                    }
 
                                     newPostCondition[sourceNeuronIndex] +=
                                         theLastPostConditions[andIndex][targetNeuronIndex] * weight;

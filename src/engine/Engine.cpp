@@ -728,7 +728,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
               layerId >= 0;
               --layerId )
         {
-            if ( !backPropagation.getHasPostConditions().get( layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 _isVerifiedBeforeOutputLayer = true;
                 throw InfeasibleQueryException();
