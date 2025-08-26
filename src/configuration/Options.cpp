@@ -77,7 +77,7 @@ void Options::initializeDefaultValues()
       Float options
     */
     _floatOptions[TIMEOUT_FACTOR] = 1.5;
-    _floatOptions[MILP_SOLVER_TIMEOUT] = 1.0;
+    _floatOptions[MILP_SOLVER_TIMEOUT] = 600.0;
     _floatOptions[PREPROCESSOR_BOUND_TOLERANCE] =
         GlobalConfiguration::DEFAULT_EPSILON_FOR_COMPARISONS;
     _floatOptions[PROBABILITY_DENSITY_PARAMETER] = 10;
@@ -101,7 +101,7 @@ void Options::initializeDefaultValues()
     _stringOptions[SOI_INITIALIZATION_STRATEGY] = "input-assignment";
     _stringOptions[LP_SOLVER] = gurobiEnabled() ? "gurobi" : "native";
     _stringOptions[SOFTMAX_BOUND_TYPE] = "lse";
-    _stringOptions[VERIFICATION_STRATEGY] = "deeppoly-bfa";
+    _stringOptions[VERIFICATION_STRATEGY] = "marabou";
 }
 
 void Options::parseOptions( int argc, char **argv )

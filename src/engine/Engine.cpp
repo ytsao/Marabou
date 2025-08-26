@@ -683,7 +683,8 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
-            if ( !backPropagation.getHasPostConditions().get( layerId ) )
+            // if ( !backPropagation.getHasPostConditions().get( layerId ) )
+            if ( layerId != numberOfLayers - 1 )
             {
                 continue;
             }
@@ -709,6 +710,7 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             extractBounds( inputQuery );
 
             // Backward analysis
+            std::cout << "Layer Id: " << layerId << std::endl;
             if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 if ( layerId != numberOfLayers - 1 )
@@ -724,17 +726,34 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         }
 
         backPropagation.generate( *query, *_networkLevelReasoner );
-        for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
-              layerId >= 0;
-              --layerId )
+        // for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+        //       layerId >= 0;
+        //       --layerId )
+        // {
+        //     if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
+        //     {
+        //         _isVerifiedBeforeOutputLayer = true;
+        //         throw InfeasibleQueryException();
+        //     }
+        // }
+        // for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+        //       layerId >= 0;
+        //       --layerId )
+        for ( unsigned layerId = 0;
+              layerId <= numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+              ++layerId )
         {
-            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.lpBoundChecking( *_networkLevelReasoner, layerId ) )
             {
                 _isVerifiedBeforeOutputLayer = true;
-                throw InfeasibleQueryException();
+                std::cout << "layerId: " << layerId << " is UNSAT." << std::endl;
+                // throw InfeasibleQueryException();
+            }
+            else
+            {
+                std::cout << "layerId: " << layerId << " is SAT." << std::endl;
             }
         }
-
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,
@@ -4377,7 +4396,7 @@ const NLR::NetworkLevelReasoner *Engine::getNetworkLevelReasoner() const
     return _networkLevelReasoner;
 }
 
-const bool Engine::getIsVerifiedBeforeOutputLayer() const
+bool Engine::getIsVerifiedBeforeOutputLayer() const
 {
     return _isVerifiedBeforeOutputLayer;
 }

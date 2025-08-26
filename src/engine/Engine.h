@@ -338,7 +338,7 @@ public:
     /*
       Get if the network is verified before the output layer
     */
-    const bool getIsVerifiedBeforeOutputLayer() const;
+    bool getIsVerifiedBeforeOutputLayer() const;
 
 private:
     enum BasisRestorationRequired {

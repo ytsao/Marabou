@@ -37,6 +37,9 @@ public:
     bool boundChecking( const NLR::NetworkLevelReasoner &_networkLevelReasoner,
                         const unsigned layerId ); // Check the post-condition of the
                                                   // layerId
+    bool lpBoundChecking( const NLR::NetworkLevelReasoner &_networkLevelReasoner,
+                          const unsigned layerId ); // Check the post-condition of the
+                                                    // layerId using LP
     bool boundRefinement( std::unique_ptr<Query> inputQuery,
                           NLR::NetworkLevelReasoner &_networkLevelReasoner );
     void build( const Query &inputQuery, const NLR::NetworkLevelReasoner &_networkLevelReasoner );
@@ -64,7 +67,7 @@ public:
         return _numberOfLinearLayers;
     }
 
-    inline Map<unsigned, Vector<Vector<Vector<Interval>>>> getPostConditions()
+    inline Map<unsigned, Vector<Vector<Vector<double>>>> getPostConditions()
     {
         return _postConditions;
     }
@@ -88,14 +91,14 @@ private:
     // TODO: it can have multiple disjunctive conditions but only 1 conjunctive condition for each
     //       disjunctive clause.
     // 3. Vector<Vector<Vector<double>>> := the clause with OR operator.
-    Map<unsigned, Vector<Vector<Vector<Interval>>>> _postConditions; // Changing the expression
-                                                                     // from std::string to
-                                                                     // Vector<double>
+    Map<unsigned, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
+                                                                   // from std::string to
+                                                                   // Vector<double>
     // key: layer index,
     // value:
     // 1. Vector<double> := the bias for each expression with AND operators.
     // 2. Vector<Vector<double>> := the bias for each expression with OR operators.
-    Map<unsigned, Vector<Vector<Interval>>> _biasVectors;
+    Map<unsigned, Vector<Vector<double>>> _biasVectors;
     Vector<bool> _hasPostConditions; // Whether the post-conditions for each layer exist
 
     // Pair layer index, it is for dealing residual networks.
