@@ -21,6 +21,7 @@
 #include "DisjunctionConstraint.h"
 #include "EngineState.h"
 #include "InfeasibleQueryException.h"
+#include "Layer.h"
 #include "MStringf.h"
 #include "MalformedBasisException.h"
 #include "MarabouError.h"
@@ -683,11 +684,12 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
         for ( unsigned int layerId = 0; layerId < numberOfLayers; ++layerId )
         {
             _networkLevelReasoner->deepPolyPropagationForOneLayer( layerId );
+            NLR::Layer *layer = _networkLevelReasoner->getLayer( layerId );
             // if ( !backPropagation.getHasPostConditions().get( layerId ) )
-            if ( layerId != numberOfLayers - 1 )
-            {
-                continue;
-            }
+            // if ( layerId != numberOfLayers - 1 )
+            // {
+            //     continue;
+            // }
 
             // Extract the bounds
             _networkLevelReasoner->getConstraintTightenings( tightenings );
@@ -709,6 +711,25 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             }
             extractBounds( inputQuery );
 
+            if ( layerId != numberOfLayers - 1 )
+            {
+                int countNumberOfUnstables = 0;
+                for ( unsigned neuronIndex = 0; neuronIndex < layer->getSize(); ++neuronIndex )
+                {
+                    double lb = layer->getLb( neuronIndex );
+                    double ub = layer->getUb( neuronIndex );
+                    if ( FloatUtils::isNegative( lb ) && FloatUtils::isPositive( ub ) )
+                    {
+                        countNumberOfUnstables++;
+                    }
+                }
+                std::cout << "---------------------------------------\n";
+                std::cout << "Layer Id: " << layerId
+                          << ", number of unstable ReLUs: " << countNumberOfUnstables
+                          << ", total number of ReLUs: " << layer->getSize() << std::endl;
+                continue;
+            }
+
             // Backward analysis
             std::cout << "Layer Id: " << layerId << std::endl;
             if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
@@ -725,35 +746,48 @@ bool Engine::solveWithDeepPolyBFA( IQuery &inputQuery )
             throw InfeasibleQueryException();
         }
 
+        // TODO: check one layer if all activation patterns are SAT then generating new
+        // postconditions to its previous layer.
+        //
+        // How to generate new postconditions by the information in the current layer?
+        // Can I refine the bounds in the current layer?
+        //
+        // Potential issue: NN is not monotonic, so it is hard to define the relationship between
+        // each activation patterns.
+        //
+        // Identify UNSAT := all tested activation patterns are UNSAT.
+        // Identify SAT := at least one tested activation pattern is SAT.
         backPropagation.generate( *query, *_networkLevelReasoner );
-        // for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
-        //       layerId >= 0;
-        //       --layerId )
-        // {
-        //     if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
-        //     {
-        //         _isVerifiedBeforeOutputLayer = true;
-        //         throw InfeasibleQueryException();
-        //     }
-        // }
-        // for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
-        //       layerId >= 0;
-        //       --layerId )
-        for ( unsigned layerId = 0;
-              layerId <= numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
-              ++layerId )
+        for ( int layerId = numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+              layerId >= 0;
+              --layerId )
         {
-            if ( !backPropagation.lpBoundChecking( *_networkLevelReasoner, layerId ) )
+            if ( !backPropagation.boundChecking( *_networkLevelReasoner, layerId ) )
             {
                 _isVerifiedBeforeOutputLayer = true;
-                std::cout << "layerId: " << layerId << " is UNSAT." << std::endl;
-                // throw InfeasibleQueryException();
-            }
-            else
-            {
-                std::cout << "layerId: " << layerId << " is SAT." << std::endl;
+                throw InfeasibleQueryException();
             }
         }
+
+        // // for ( int layerId = numberOfLayers - 2 -
+        // backPropagation.getIsActivationBeforeOutput();
+        // //       layerId >= 0;
+        // //       --layerId )
+        // for ( unsigned layerId = 0;
+        //       layerId <= numberOfLayers - 2 - backPropagation.getIsActivationBeforeOutput();
+        //       ++layerId )
+        // {
+        //     if ( !backPropagation.lpBoundChecking( *_networkLevelReasoner, layerId ) )
+        //     {
+        //         _isVerifiedBeforeOutputLayer = true;
+        //         std::cout << "layerId: " << layerId << " is UNSAT." << std::endl;
+        //         // throw InfeasibleQueryException();
+        //     }
+        //     else
+        //     {
+        //         std::cout << "layerId: " << layerId << " is SAT." << std::endl;
+        //     }
+        // }
 
         struct timespec end = TimeUtils::sampleMicro();
         _statistics.setLongAttribute( Statistics::CALCULATE_BOUNDS_TIME_MICRO,

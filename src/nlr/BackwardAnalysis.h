@@ -94,6 +94,7 @@ private:
     Map<unsigned, Vector<Vector<Vector<double>>>> _postConditions; // Changing the expression
                                                                    // from std::string to
                                                                    // Vector<double>
+
     // key: layer index,
     // value:
     // 1. Vector<double> := the bias for each expression with AND operators.

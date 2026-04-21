@@ -66,13 +66,13 @@ bool BackPropagation::boundChecking( const NLR::NetworkLevelReasoner &_networkLe
             for ( unsigned i = 0; i < _postConditions[layerId][orIndex][andIndex].size(); ++i )
             {
                 double coef = _postConditions[layerId][orIndex][andIndex][i];
-                double ub = layer->getUb( i );
                 double lb = layer->getLb( i );
+                double ub = layer->getUb( i );
                 value.reset();
                 // std::cout << "variable index: " << i << std::endl;
-                // std::cout << "lb: " << lb << ", ub: " << ub << ", coef: " << coef << std::endl;
 
-                if ( FloatUtils::isNegative( ub ) && FloatUtils::isNegative( coef ) )
+                if ( FloatUtils::isNegative( ub ) && FloatUtils::isNegative( coef ) &&
+                     layerId != _networkLevelReasoner.getNumberOfLayers() - 1 )
                 {
                     // If the coefficient is negative and the upper bound of the
                     // previous layer is negative, we can skip this term.
@@ -506,6 +506,7 @@ void BackPropagation::_generateNewPostConditions(
     double newBias;
     const Vector<double> emptyPostConditions;
     const double emptyBias = 0.0;
+    int countNumUnstableNeurons = 0;
     for ( unsigned orIndex = 0; orIndex < _numberOfOrConditions; ++orIndex )
     {
         unsigned countAddedPostConditions = 1; // It should be 1, because there is an onriginal
@@ -525,6 +526,9 @@ void BackPropagation::_generateNewPostConditions(
             const NLR::Layer *currentLayer = _networkLevelReasoner.getLayer( layerIndex );
             const NLR::Layer *sourceLayer =
                 _networkLevelReasoner.getLayer( layerIndex - 1 ); // Assume feedforward network.
+            const NLR::Layer *beforeSourceLayer = nullptr;
+            if ( layerIndex >= 2 )
+                beforeSourceLayer = _networkLevelReasoner.getLayer( layerIndex - 2 );
             const NLR::Layer::Type layerType = currentLayer->getLayerType();
 
             if ( layerType == NLR::Layer::Type::ABSOLUTE_VALUE )
@@ -553,9 +557,10 @@ void BackPropagation::_generateNewPostConditions(
             {
                 // It implies that removing the ReLU function from each neuron in the layer.
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
+                // const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
                 {
                     const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
-                    auto theLastBias = _biasVectors[layerIndex][orIndex];
+                    const auto &theLastBias = _biasVectors[layerIndex][orIndex];
                     // _postConditions[layerIndex - 1].append( std::move( theLastPostConditions ) );
                     _biasVectors[layerIndex - 1].append( std::move( theLastBias ) );
 
@@ -565,43 +570,71 @@ void BackPropagation::_generateNewPostConditions(
                     {
                         newPostCondition =
                             Vector<double>( theLastPostConditions[andIndex].size(), 0.0 );
-                        int countUnstableNeurons = 0;
+                        // test: if currentUB is negative or zero, remove it.
+                        int countNumUnstableNeurons = 0;
                         for ( unsigned neuronIndex = 0;
                               neuronIndex < theLastPostConditions[andIndex].size();
                               ++neuronIndex )
                         {
                             double coef = theLastPostConditions[andIndex][neuronIndex];
                             if ( FloatUtils::isZero( coef ) )
-                                continue; // Skip if the coefficient is zero.
+                                continue;
+                            double currentNeuronLb = currentLayer->getLb( neuronIndex );
+                            double currentNeuronUb = currentLayer->getUb( neuronIndex );
                             double sourceNeuronLb = sourceLayer->getLb( neuronIndex );
                             double sourceNeuronUb = sourceLayer->getUb( neuronIndex );
 
+                            if ( FloatUtils::isNegative( currentNeuronLb ) &&
+                                 FloatUtils::isPositive( currentNeuronUb ) )
+                            {
+                                countNumUnstableNeurons++;
+                            }
+
+                            // // Suffiiciency:
+                            // // In this version, the verificaiton performance can compete with
+                            // // alpha-beta-crown. But, it is not sound for some instances.
+                            // //
+                            // if ( FloatUtils::isNegative( currentNeuronUb ) ||
+                            //      FloatUtils::isZero( currentNeuronUb ) )
+                            // {
+                            //     continue;
+                            // }
+                            // if ( FloatUtils::isPositive( coef ) &&
+                            //      FloatUtils::isNegative( sourceNeuronLb ) &&
+                            //      FloatUtils::isPositive( sourceNeuronUb ) )
+                            // {
+                            //     continue;
+                            // }
                             if ( FloatUtils::isNegative( sourceNeuronLb ) &&
                                  FloatUtils::isPositive( sourceNeuronUb ) )
-                            {
-                                countUnstableNeurons++;
-                            }
+                                countNumUnstableNeurons++;
 
-                            if ( FloatUtils::isPositive( coef ) &&
-                                 FloatUtils::isNegative( sourceNeuronLb ) )
+                            // TODO: anlayze why this abstraction is not sound.
+                            // The unsoundness only happens in mnist_img35 with fnn4.
+                            // if ( FloatUtils::isNegative( sourceNeuronUb ) ||
+                            //      FloatUtils::isZero( sourceNeuronUb ) )
+                            if ( FloatUtils::isNegative( currentNeuronUb ) ||
+                                 FloatUtils::isZero( currentNeuronUb ) )
                             {
                                 continue;
                             }
-                            if ( FloatUtils::isNegative( sourceNeuronUb ) ||
-                                 FloatUtils::isZero( sourceNeuronUb ) )
+                            else if ( FloatUtils::isNegative( sourceNeuronLb ) &&
+                                      FloatUtils::isPositive( sourceNeuronUb ) &&
+                                      FloatUtils::isPositive( coef ) )
                             {
                                 continue;
                             }
-
-                            newPostCondition[neuronIndex] += coef;
+                            else
+                                newPostCondition[neuronIndex] += coef;
                         }
-                        newAndPostConditions.append( std::move( newPostCondition ) );
-                        std::cout << "Number of unstable neurons: " << countUnstableNeurons
+                        std::cout << "------------------" << std::endl;
+                        std::cout << "The number of unstable neurons: " << countNumUnstableNeurons
                                   << std::endl;
+                        std::cout << "------------------" << std::endl;
+                        newAndPostConditions.append( std::move( newPostCondition ) );
                     }
                     // _postConditions[layerIndex][orIndex] = theLastPostConditions;
                     _postConditions[layerIndex - 1].append( std::move( newAndPostConditions ) );
-
                     countAddedPostConditions++;
                 }
 
@@ -649,6 +682,7 @@ void BackPropagation::_generateNewPostConditions(
             {
                 if ( countAddedPostConditions < numLayersWithAdditionalPostConditions )
                 {
+                    // const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
                     const auto &theLastPostConditions = _postConditions[layerIndex][orIndex];
                     const auto &theLastBias = _biasVectors[layerIndex][orIndex];
                     Vector<Vector<double>> newAndPostConditions( theLastPostConditions.size(),
@@ -688,30 +722,40 @@ void BackPropagation::_generateNewPostConditions(
                                     double weight = currentLayer->getWeight( sourceLayerPair.first,
                                                                              sourceNeuronIndex,
                                                                              targetNeuronIndex );
-                                    double sourceNeuronUb = sourceLayer->getUb( sourceNeuronIndex );
-                                    double sourceNeuronLb = sourceLayer->getLb( sourceNeuronIndex );
-                                    if ( ( FloatUtils::isZero( sourceNeuronUb ) ||
-                                           FloatUtils::isNegative( sourceNeuronUb ) ) &&
-                                         layerIndex - 1 != 0 )
-                                        continue;
+                                    // old version:
+                                    // Whatever neuron is stable, keep it.
+                                    newPostCondition[sourceNeuronIndex] += ( coef * weight );
 
-                                    if ( FloatUtils::isNegative( coef * weight ) )
-                                    {
-                                        newPostCondition[sourceNeuronIndex] +=
-                                            ( coef * weight * targetNeuronUb );
-                                    }
-                                    else if ( FloatUtils::isPositive( coef * weight ) )
-                                    {
-                                        if ( FloatUtils::isNegative( targetNeuronLb ) )
-                                        {
-                                            continue;
-                                        }
-                                        else
-                                        {
-                                            newPostCondition[sourceNeuronIndex] +=
-                                                ( coef * weight * targetNeuronLb );
-                                        }
-                                    }
+                                    // Fixing the soundness problem that appears in above.
+                                    // test:
+                                    // double currentNeuronLb =
+                                    //     currentLayer->getLb( targetNeuronIndex );
+                                    // double currentNeuronUb =
+                                    //     currentLayer->getUb( targetNeuronIndex );
+                                    // double sourceNeuronLb = sourceLayer->getLb( sourceNeuronIndex
+                                    // ); double sourceNeuronUb = sourceLayer->getUb(
+                                    // sourceNeuronIndex );
+                                    // // if ( FloatUtils::isPositive( coef ) &&
+                                    // //      FloatUtils::isNegative( weight * coef ) &&
+                                    // //      FloatUtils::isPositive( sourceNeuronLb ) )
+                                    // // {
+                                    // //     newPostCondition[sourceNeuronIndex] += ( coef * weight
+                                    // );
+                                    // // }
+                                    // if ( FloatUtils::isNegative( sourceNeuronUb ) ||
+                                    //      FloatUtils::isZero( sourceNeuronUb ) )
+                                    // {
+                                    //     // If the upper bound of the source neuron is negative or
+                                    //     // zero, it means that the source neuron is inactive
+                                    //     // neuron.
+                                    //     // So, we don't need to consider its gradient to the
+                                    //     // target neuron.
+                                    //     continue;
+                                    // }
+                                    // else
+                                    // {
+                                    //     newPostCondition[sourceNeuronIndex] += ( coef * weight );
+                                    // }
                                 }
                             }
                             double bias = currentLayer->getBias( targetNeuronIndex );
@@ -739,6 +783,7 @@ void BackPropagation::_generateNewPostConditions(
             }
         }
     }
+    std::cout << "number of unstable neurons: " << countNumUnstableNeurons << std::endl;
     return;
 }
 } // namespace BP
